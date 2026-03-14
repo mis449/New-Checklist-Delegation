@@ -692,7 +692,7 @@ function DelegationDataPage() {
 
                 // Map all columns including column H (col7) for user filtering, column I (col8) for Task, and column P (col15) for Admin Done
                 for (let i = 0; i < 16; i++) {
-                  if (i === 0 || i === 6 || i === 10) {
+                  if (i === 0 || i === 3 || i === 6 || i === 10) {
                     rowData[`col${i}`] = rowValues[i]
                       ? parseGoogleSheetsDate(String(rowValues[i]))
                       : "";
@@ -765,8 +765,8 @@ function DelegationDataPage() {
 
         // Map all columns including timestamp (column A)
         for (let i = 0; i < 21; i++) {
-          if (i === 0 || i === 6 || i === 10) {
-            // Column A (0), G (6), K (10) are dates
+          if (i === 0 || i === 6 || i === 10 || i === 11) {
+            // Column A (0), G (6), K (10), L (11) are dates
             rowData[`col${i}`] = rowValues[i]
               ? parseGoogleSheetsDate(String(rowValues[i]))
               : "";
@@ -820,7 +820,11 @@ function DelegationDataPage() {
         }
       });
 
-      setHistoryData([...processedHistoryData, ...allExtraHistoryData]);
+      // Filter out duplicates: if a task is already in processedHistoryData, don't add it from allExtraHistoryData
+      const existingTaskIds = new Set(processedHistoryData.filter(item => item.col1).map(item => String(item.col1)));
+      const filteredExtraHistoryData = allExtraHistoryData.filter(item => !item.col1 || !existingTaskIds.has(String(item.col1)));
+
+      setHistoryData([...processedHistoryData, ...filteredExtraHistoryData]);
       setAccountData(allPendingData);
       setDelegationData(allSourceDataForMatching);
       setLoading(false);
@@ -1885,7 +1889,7 @@ function DelegationDataPage() {
                               )}
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="text-sm font-medium text-gray-900">
-                                  {history["col0"] || "—"}
+                                  {formatDateForDisplay(history["col0"]) || "—"}
                                 </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
@@ -2539,17 +2543,17 @@ function DelegationDataPage() {
                           );
                         })
                       ) : !loading && (searchTerm || nameFilter || statusFilter !== "All Status" || dateRange.start || dateRange.end || accountData.length === 0) ? (
-                          <tr>
-                            <td
-                              colSpan={13}
-                              className="px-6 py-4 text-center text-gray-500"
-                            >
-                              {searchTerm || nameFilter || statusFilter !== "All Status" || dateRange.start || dateRange.end
-                                ? "No tasks matching your filters"
-                                : "No pending tasks found"}
-                            </td>
-                          </tr>
-                        ) : null}
+                        <tr>
+                          <td
+                            colSpan={13}
+                            className="px-6 py-4 text-center text-gray-500"
+                          >
+                            {searchTerm || nameFilter || statusFilter !== "All Status" || dateRange.start || dateRange.end
+                              ? "No tasks matching your filters"
+                              : "No pending tasks found"}
+                          </td>
+                        </tr>
+                      ) : null}
                     </tbody>
                   </table>
                 </div>

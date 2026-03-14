@@ -245,22 +245,20 @@ export default function HolidaysPage() {
           <div className="flex bg-gray-100/80 p-1.5 rounded-2xl border border-gray-200 shadow-inner">
             <button
               onClick={() => setActiveTab("working-days")}
-              className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
-                activeTab === "working-days"
+              className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === "working-days"
                   ? "bg-purple-600 bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md"
                   : "text-gray-600 hover:bg-white/50 text-gray-600"
-              }`}
+                }`}
             >
               <Briefcase className={`w-4 h-4 ${activeTab === "working-days" ? "text-white" : "text-gray-500"}`} />
               <span className={activeTab === "working-days" ? "text-white" : ""}>Working Days</span>
             </button>
             <button
               onClick={() => setActiveTab("holidays")}
-              className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
-                activeTab === "holidays"
+              className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === "holidays"
                   ? "bg-purple-600 bg-gradient-to-r from-purple-300 to-pink-700 text-white shadow-md"
                   : "text-gray-600 hover:bg-white/50 text-gray-600"
-              }`}
+                }`}
             >
               <CalendarIcon className={`w-4 h-4 ${activeTab === "holidays" ? "text-white" : "text-gray-500"}`} />
               <span className={activeTab === "holidays" ? "text-white" : ""}>Holidays</span>
@@ -346,7 +344,7 @@ export default function HolidaysPage() {
               <h3 className="text-xl font-bold text-white">
                 {isEditing ? "Edit Holiday" : "Add New Holiday"}
               </h3>
-              <button 
+              <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-white/80 hover:text-white transition-colors"
                 title="Close"
