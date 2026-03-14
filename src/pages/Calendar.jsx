@@ -390,10 +390,11 @@ const CalendarUI = ({ userRole, userName, displayName }) => {
       }
       setAllWorkingDates(allDates);
 
-      // Step 2: Fetch Checklist & Delegation sheet tasks
-      const [checklistResponse, delegationResponse] = await Promise.all([
+      // Step 2: Fetch Checklist, Delegation & Whatsapp sheet data
+      const [checklistResponse, delegationResponse, whatsappResponse] = await Promise.all([
         axios.get(`${BACKEND_URL}?sheet=Checklist&action=fetch`, { timeout: 30000 }),
-        axios.get(`${BACKEND_URL}?sheet=DELEGATION&action=fetch`, { timeout: 30000 }).catch(() => ({ data: { table: { rows: [] } } }))
+        axios.get(`${BACKEND_URL}?sheet=DELEGATION&action=fetch`, { timeout: 30000 }).catch(() => ({ data: { table: { rows: [] } } })),
+        axios.get(`${BACKEND_URL}?sheet=Whatsapp&action=fetch`, { timeout: 30000 }).catch(() => null)
       ]);
 
       if (!isMounted) return;
@@ -410,9 +411,31 @@ const CalendarUI = ({ userRole, userName, displayName }) => {
 
       const allTasks = [...checklistTasks, ...delegationTasks];
 
-      // NEW: Extract unique names for dropdown
-      const names = extractUniqueNames(allTasks);
-      setAvailableNames(names);
+      // Extract unique names for dropdown from Whatsapp sheet
+      let names = [];
+      if (whatsappResponse?.data?.table?.rows) {
+        const rows = whatsappResponse.data.table.rows;
+        for (let i = 1; i < rows.length; i++) {
+          const cells = rows[i].c || [];
+          const nameValue = cells[2]?.v; // Column C (index 2) is Username
+          if (nameValue && nameValue.toString().trim() !== "" && nameValue.toString().trim() !== "-") {
+            names.push(nameValue.toString().trim());
+          }
+        }
+        names = Array.from(new Set(names)).sort();
+      }
+
+      // If Whatsapp names are empty, fallback to names from tasks
+      if (names.length === 0) {
+        names = extractUniqueNames(allTasks);
+      }
+
+      // Filter names based on user role
+      const filteredNamesForDropdown = (role === "admin" || role === "main admin")
+        ? names
+        : names.filter(n => normalize(n) === normalize(uName) || normalize(n) === normalize(dName));
+
+      setAvailableNames(filteredNamesForDropdown);
 
       // Step 3: Calculate stats
       calculateStats(allTasks);

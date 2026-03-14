@@ -52,6 +52,11 @@ export default function SettingsPage() {
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
   const [isSubmittingLeave, setIsSubmittingLeave] = useState(false);
 
+  // Edit State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const fetchUsers = async () => {
     try {
       setLoading(true);
@@ -96,6 +101,7 @@ export default function SettingsPage() {
         }
 
         usersList.push({
+          rowIndex: rowIndex + 1,
           department: rowValues[0] || "-",
           givenBy: rowValues[1] || "-",
           username: rowValues[2] || "-",
@@ -197,9 +203,28 @@ export default function SettingsPage() {
     )
   );
 
-  const uniqueDepartments = Array.from(
-    new Set(usersInfo.map(user => user.department).filter(dep => dep && dep !== "-"))
-  ).sort();
+  const uniqueDepartments = [];
+  const seenDepts = new Set();
+  usersInfo.forEach(user => {
+    if (user.department && user.department !== "-" && !seenDepts.has(user.department)) {
+      seenDepts.add(user.department);
+      uniqueDepartments.push({ ...user });
+    }
+  });
+  uniqueDepartments.sort((a, b) => a.department.localeCompare(b.department));
+
+  const uniqueAssigneePairs = [];
+  const seenPairs = new Set();
+  usersInfo.forEach(user => {
+    if (user.department && user.department !== "-" && user.givenBy && user.givenBy !== "-") {
+      const pairKey = `${user.department}-${user.givenBy}`;
+      if (!seenPairs.has(pairKey)) {
+        seenPairs.add(pairKey);
+        uniqueAssigneePairs.push({ ...user });
+      }
+    }
+  });
+  uniqueAssigneePairs.sort((a, b) => a.department.localeCompare(b.department));
 
   const parseDateForFilter = (dateStr) => {
     if (!dateStr) return null;
@@ -333,61 +358,56 @@ export default function SettingsPage() {
     }
   };
 
-  const handleLeaveSubmit = async () => {
-    if (selectedTasks.size === 0) {
-      alert("Please select at least one task.");
-      return;
-    }
+  const handleEditClick = (item, type) => {
+    // Find the original full user record to ensure we don't accidentally clear other columns
+    const fullUser = usersInfo.find(u => u.rowIndex === item.rowIndex);
+    setEditingItem({ ...(fullUser || item), editType: type });
+    setIsEditModalOpen(true);
+  };
 
-    setIsSubmittingLeave(true);
+  const handleEditSubmit = async () => {
+    if (!editingItem) return;
+
+    setIsUpdating(true);
     try {
-      // Find the tasks that are selected to get their row indices
-      const selectedTasksToSubmit = filteredLeaveTasks.filter(task => selectedTasks.has(task.taskId));
+      const formPayload = new FormData();
+      formPayload.append("sheetName", CONFIG.SHEET_NAME);
+      formPayload.append("action", "update");
+      formPayload.append("rowIndex", editingItem.rowIndex);
+
+      // Construct the full row to ensure we don't accidentally clear other columns
+      // [Department, Given By, Username, Password, Role, Email, Number]
+      const row = [
+        editingItem.department || "",
+        editingItem.givenBy || "",
+        editingItem.username || "",
+        editingItem.password || "",
+        editingItem.role || "",
+        editingItem.email || "",
+        editingItem.number || ""
+      ];
+
+      formPayload.append("rowData", JSON.stringify(row));
+
+      await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: "POST",
+        body: formPayload,
+        mode: "no-cors",
+      });
+
+      setIsEditModalOpen(false);
+      setEditingItem(null);
       
-      // We use the generic "update" action because the "updateAdminDone" action in Apps Script 
-      // is hardcoded to Column P (16). Using "update" lets us target Column Q (17) via array index.
-      for (const task of selectedTasksToSubmit) {
-        const formPayload = new FormData();
-        formPayload.append("sheetName", "Checklist");
-        formPayload.append("action", "update");
-        formPayload.append("rowIndex", task.rowIndex);
-        
-        // Helper to format YYYY-MM-DD to DD/MM/YYYY
-        const formatDateForSheet = (dateStr) => {
-          if (!dateStr) return "";
-          const [year, month, day] = dateStr.split("-");
-          return `${day}/${month}/${year}`;
-        };
+      setTimeout(() => {
+        fetchUsers();
+      }, 1000);
 
-        const startDateFormatted = formatDateForSheet(leaveStartDate);
-        const endDateFormatted = formatDateForSheet(leaveEndDate);
-        const leaveString = `Leave ${startDateFormatted} - ${endDateFormatted}`;
-
-        // Array index 16 corresponds to Column 17, which is Column Q (Leave)
-        const rowUpdateArr = Array(17).fill("");
-        rowUpdateArr[16] = leaveString; 
-        
-        formPayload.append("rowData", JSON.stringify(rowUpdateArr));
-
-        await fetch(CONFIG.APPS_SCRIPT_URL, {
-          method: "POST",
-          body: formPayload,
-        });
-      }
-
-      alert("Tasks marked as leave successfully!");
-      const currentUsername = selectedLeaveUser?.username;
-      setSelectedTasks(new Set());
-      setSelectedLeaveUser(null);
-      
-      if (currentUsername) {
-        fetchUserTasks(currentUsername);
-      }
+      alert("Updated successfully!");
     } catch (error) {
-      console.error("Error submitting leave tasks:", error);
-      alert("Failed to submit leave tasks. Please try again.");
+      console.error("Error updating:", error);
+      alert("Failed to update. Please try again.");
     } finally {
-      setIsSubmittingLeave(false);
+      setIsUpdating(false);
     }
   };
 
@@ -491,6 +511,7 @@ export default function SettingsPage() {
                       <th className="px-6 py-4 font-semibold tracking-wider text-center">Role</th>
                       <th className="px-6 py-4 font-semibold tracking-wider">ID/Email</th>
                       <th className="px-6 py-4 font-semibold tracking-wider text-right">Number</th>
+                      <th className="px-6 py-4 font-semibold tracking-wider text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -530,6 +551,13 @@ export default function SettingsPage() {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-500">{user.email}</td>
                           <td className="px-6 py-4 text-sm text-gray-600 text-right">{user.number}</td>
+                          <td className="px-6 py-4 text-right">
+                            <button 
+                              onClick={() => handleEditClick(user, "user")}
+                              className="text-purple-500 hover:text-purple-800 hover:bg-purple-100 p-2 rounded-md transition-colors inline-block">
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -569,7 +597,12 @@ export default function SettingsPage() {
                   <thead>
                     <tr className="border-b border-gray-200 text-xs uppercase text-purple-800 font-bold bg-gray-50">
                       <th className="px-6 py-4 font-semibold tracking-wider w-16">#</th>
-                      <th className="px-6 py-4 font-semibold tracking-wider">DEPARTMENT NAME</th>
+                      <th className="px-6 py-4 font-semibold tracking-wider">
+                        {deptViewMode === "names" ? "DEPARTMENT NAME" : "ASSIGNEE NAME"}
+                      </th>
+                      {deptViewMode === "assignees" && (
+                        <th className="px-6 py-4 font-semibold tracking-wider">DEPARTMENT</th>
+                      )}
                       <th className="px-6 py-4 font-semibold tracking-wider text-right">ACTIONS</th>
                     </tr>
                   </thead>
@@ -586,19 +619,28 @@ export default function SettingsPage() {
                           {error}
                         </td>
                       </tr>
-                    ) : uniqueDepartments.length === 0 ? (
+                    ) : (deptViewMode === "names" ? uniqueDepartments : uniqueAssigneePairs).length === 0 ? (
                       <tr>
-                        <td colSpan="3" className="px-6 py-12 text-center text-gray-500">
-                          No departments found.
+                        <td colSpan={deptViewMode === "names" ? "3" : "4"} className="px-6 py-12 text-center text-gray-500">
+                          {deptViewMode === "names" ? "No departments found." : "No assignees found."}
                         </td>
                       </tr>
                     ) : (
-                      uniqueDepartments.map((dept, idx) => (
+                      (deptViewMode === "names" ? uniqueDepartments : uniqueAssigneePairs).map((item, idx) => (
                         <tr key={idx} className="hover:bg-purple-50/50 transition-colors">
                           <td className="px-6 py-4 text-sm text-gray-700">{idx + 1}</td>
-                          <td className="px-6 py-4 text-sm font-bold text-gray-900">{dept}</td>
+                          <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                            {deptViewMode === "names" ? item.department : item.givenBy}
+                          </td>
+                          {deptViewMode === "assignees" && (
+                            <td className="px-6 py-4 text-sm text-gray-700 font-medium">
+                              {item.department}
+                            </td>
+                          )}
                           <td className="px-6 py-4 text-right">
-                            <button className="text-purple-500 hover:text-purple-800 hover:bg-purple-100 p-2 rounded-md transition-colors inline-block">
+                            <button 
+                              onClick={() => handleEditClick(item, deptViewMode === "names" ? "dept" : "assignee")}
+                              className="text-purple-500 hover:text-purple-800 hover:bg-purple-100 p-2 rounded-md transition-colors inline-block">
                               <Edit className="w-4 h-4" />
                             </button>
                           </td>
@@ -996,6 +1038,140 @@ export default function SettingsPage() {
                   className="py-3 px-4 bg-purple-600 text-white font-bold rounded-xl shadow-md hover:bg-purple-700 disabled:opacity-50"
                 >
                   {isSubmittingUser ? "Creating..." : "Create User"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Edit Modal */}
+      {isEditModalOpen && editingItem && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="bg-purple-600 p-6 flex justify-between items-start">
+              <div className="text-white">
+                <h2 className="text-2xl font-bold mb-1">Edit {editingItem.editType === "user" ? "User" : editingItem.editType === "dept" ? "Department" : "Assignee"}</h2>
+                <p className="text-white/80 text-sm">Update information in the system</p>
+              </div>
+              <button 
+                onClick={() => setIsEditModalOpen(false)}
+                className="bg-white/20 hover:bg-white/30 rounded-full p-1 text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-4 bg-purple-50/30 max-h-[70vh] overflow-y-auto">
+              {editingItem.editType === "user" ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Department</label>
+                      <input 
+                        type="text" 
+                        value={editingItem.department}
+                        onChange={(e) => setEditingItem({...editingItem, department: e.target.value})}
+                        className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Given By</label>
+                      <input 
+                        type="text" 
+                        value={editingItem.givenBy}
+                        onChange={(e) => setEditingItem({...editingItem, givenBy: e.target.value})}
+                        className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Username *</label>
+                    <input 
+                      type="text" 
+                      value={editingItem.username}
+                      onChange={(e) => setEditingItem({...editingItem, username: e.target.value})}
+                      className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Password *</label>
+                    <input 
+                      type="text" 
+                      value={editingItem.password}
+                      onChange={(e) => setEditingItem({...editingItem, password: e.target.value})}
+                      className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Role</label>
+                      <select 
+                        value={editingItem.role}
+                        onChange={(e) => setEditingItem({...editingItem, role: e.target.value})}
+                        className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                      >
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                        <option value="main admin">Main Admin</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Number</label>
+                      <input 
+                        type="text" 
+                        value={editingItem.number}
+                        onChange={(e) => setEditingItem({...editingItem, number: e.target.value})}
+                        className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Email</label>
+                    <input 
+                      type="email" 
+                      value={editingItem.email}
+                      onChange={(e) => setEditingItem({...editingItem, email: e.target.value})}
+                      className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Department Name</label>
+                    <input 
+                      type="text" 
+                      value={editingItem.department}
+                      onChange={(e) => setEditingItem({...editingItem, department: e.target.value})}
+                      className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-purple-700 uppercase mb-2">Assignee (Given By)</label>
+                    <input 
+                      type="text" 
+                      value={editingItem.givenBy}
+                      onChange={(e) => setEditingItem({...editingItem, givenBy: e.target.value})}
+                      className="w-full border border-purple-100 rounded-xl py-2 px-4 text-sm focus:ring-2 focus:ring-purple-500 bg-white"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                <button 
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="py-3 px-4 bg-white border border-purple-100 text-purple-600 font-bold rounded-xl shadow-sm hover:bg-purple-50"
+                  disabled={isUpdating}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleEditSubmit}
+                  disabled={isUpdating}
+                  className="py-3 px-4 bg-purple-600 text-white font-bold rounded-xl shadow-md hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {isUpdating ? "Updating..." : "Update Changes"}
                 </button>
               </div>
             </div>

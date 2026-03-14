@@ -1255,7 +1255,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Task Navigation Tabs - Restored to 3 tabs for both modes */}
-        <div className="w-full overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="w-full rounded-lg border border-gray-200 bg-white">
           <div className="grid grid-cols-3">
             <button
               className={`py-3 text-center font-medium transition-colors ${taskView === "recent"
@@ -1288,8 +1288,8 @@ export default function AdminDashboard() {
             </button>
           </div>
 
-          <div className="p-4">
-            <div className="flex flex-col gap-4 md:flex-row mb-4">
+          <div className="p-4 relative z-20">
+            <div className="flex flex-col gap-4 md:flex-row mb-1 relative z-30">
               <div className="flex-1 space-y-2">
                 <label
                   htmlFor="search"

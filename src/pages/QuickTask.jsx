@@ -20,9 +20,9 @@ export default function QuickTask() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState({
-    name: false,
     frequency: false
   });
+  const [availableNames, setAvailableNames] = useState([]);
 
   const CONFIG = {
     SHEET_ID: "1xe3G3WyX56PP-5plMZQJiiHY6RH9UmDKc1FQYX2Oz6A",
@@ -55,11 +55,16 @@ export default function QuickTask() {
 
       if (data?.table?.rows) {
         let foundUser = null;
+        let allNames = [];
 
         // Skip header row and search for user
         data.table.rows.slice(1).forEach((row) => {
           if (row.c) {
             const doerName = row.c[2]?.v || ""; // Column C - Doer's Name
+            if (doerName && doerName.trim() !== "" && doerName.trim() !== "-") {
+              allNames.push(doerName.trim());
+            }
+
             const role = row.c[4]?.v || "user"; // Column E - Role
 
             // Match by username (case-insensitive)
@@ -75,9 +80,19 @@ export default function QuickTask() {
           }
         });
 
+        // Deduplicate and sort names
+        const uniqueNames = Array.from(new Set(allNames)).sort();
+
         if (foundUser) {
           setCurrentUser(foundUser.name);
           setUserRole(foundUser.role);
+
+          // Filter names based on role for the dropdown
+          const filteredNames = (foundUser.role === 'admin' || foundUser.role === 'main admin')
+            ? uniqueNames
+            : uniqueNames.filter(n => n.toLowerCase().trim() === foundUser.name.toLowerCase().trim());
+          
+          setAvailableNames(filteredNames);
         } else {
           throw new Error(`User "${loggedInUsername}" not found in Whatsapp sheet. Please contact administrator.`);
         }
@@ -295,7 +310,7 @@ export default function QuickTask() {
   const getFilterOptions = () => {
     const currentTasks = activeTab === 'checklist' ? tasks : delegationTasks;
 
-    const names = [...new Set(currentTasks.map(task => task.Name))]
+    const names = availableNames.length > 0 ? availableNames : [...new Set(currentTasks.map(task => task.Name))]
       .filter(name => name && typeof name === 'string' && name.trim() !== '');
 
     // For checklist, use 'Frequency' field, for delegation use 'Freq'
