@@ -672,31 +672,10 @@ export default function AdminDashboard() {
             //console.log(`Row ${rowIndex + 1}: taskStartDateValue="${taskStartDateValue}", parsed="${taskStartDate}"`);
           }
 
-          // UPDATED: Different date filtering logic for delegation vs checklist
-          if (dashboardType === "delegation") {
-            // For DELEGATION mode: Process ALL tasks with valid task IDs, no date filtering
-            if (
-              !taskId ||
-              taskId === null ||
-              taskId === undefined ||
-              taskId === "" ||
-              (typeof taskId === "string" && taskId.trim() === "")
-            ) {
-              return null;
-            }
-          } else {
-            // For CHECKLIST mode: Keep existing date filtering logic
-            const taskStartDateObj = parseDateFromDDMMYYYY(taskStartDate);
-
-            if (rowIndex <= 5) {
-              //console.log(`Row ${rowIndex + 1}: taskStartDateObj=${taskStartDateObj}, today=${today}, tomorrow=${tomorrow}, isValid=${!!taskStartDateObj}`);
-            }
-
-            // Process tasks that have a valid start date and are due up to tomorrow (include tomorrow's tasks)
-            if (!taskStartDateObj || taskStartDateObj > tomorrow) {
-              //console.log(`Row ${rowIndex + 1}: Skipped due to invalid/far future date (beyond tomorrow)`);
-              return null; // Skip tasks beyond tomorrow
-            }
+          // UPDATED: Standardized logic for delegation and checklist
+          // We count tasks if they have a task ID, regardless of date (to match sheet totals)
+          if (!taskIdStr) {
+            return null;
           }
 
           // Get completion data based on dashboard type
@@ -798,14 +777,16 @@ export default function AdminDashboard() {
               }
             } else {
               staffData.pendingTasks++;
-              if (status === "overdue") {
+            if (status === "overdue") {
                 overdueTasks++;
                 statusData.Overdue++;
+              } else {
+                statusData.Pending++;
               }
               pendingTasks++;
-              statusData.Pending++;
 
-              const monthName = new Date().toLocaleString("default", { month: "short" });
+              const taskDate = parseDateFromDDMMYYYY(taskStartDate) || today;
+              const monthName = taskDate.toLocaleString("default", { month: "short" });
               if (monthlyData[monthName]) monthlyData[monthName].pending++;
             }
           } else {
@@ -831,7 +812,8 @@ export default function AdminDashboard() {
                 statusData.Pending++; // Chart uses exclusive categories
               }
 
-              const monthName = today.toLocaleString("default", { month: "short" });
+              const taskDate = parseDateFromDDMMYYYY(taskStartDate) || today;
+              const monthName = taskDate.toLocaleString("default", { month: "short" });
               if (monthlyData[monthName]) monthlyData[monthName].pending++;
             }
           }

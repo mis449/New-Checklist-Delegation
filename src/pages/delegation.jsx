@@ -1876,11 +1876,9 @@ function DelegationDataPage() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Given By
                         </th>
-                        {userRole === "admin" && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 min-w-[140px]">
-                            Admin Done
-                          </th>
-                        )}
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 min-w-[140px]">
+                          Admin Done
+                        </th>
                       </tr>
                       {loading && <LoadingBuffer />}
                     </thead>
@@ -2090,38 +2088,36 @@ function DelegationDataPage() {
                                   {history["col9"] || "—"}
                                 </div>
                               </td>
-                              {userRole === "admin" && (
-                                <td className="px-6 py-4 bg-gray-50 min-w-[140px]">
-                                  {isAdminDone ? (
-                                    <div className="text-sm text-gray-900 break-words">
-                                      <div className="flex items-center">
-                                        <div className="h-4 w-4 rounded border-gray-300 text-green-600 bg-green-100 mr-2 flex items-center justify-center">
-                                          <span className="text-xs text-green-600">
-                                            ✓
-                                          </span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                          <div className="font-medium text-green-700 text-sm">
-                                            Done
-                                          </div>
+                              <td className="px-6 py-4 bg-gray-50 min-w-[140px]">
+                                {isAdminDone ? (
+                                  <div className="text-sm text-gray-900 break-words">
+                                    <div className="flex items-center">
+                                      <div className="h-4 w-4 rounded border-gray-300 text-green-600 bg-green-100 mr-2 flex items-center justify-center">
+                                        <span className="text-xs text-green-600">
+                                          ✓
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <div className="font-medium text-green-700 text-sm">
+                                          Done
                                         </div>
                                       </div>
                                     </div>
-                                  ) : (
-                                    <div className="flex items-center text-gray-400 text-sm">
-                                      <div className="h-4 w-4 rounded border-gray-300 mr-2"></div>
-                                      <span>Pending</span>
-                                    </div>
-                                  )}
-                                </td>
-                              )}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center text-gray-400 text-sm">
+                                    <div className="h-4 w-4 rounded border-gray-300 mr-2"></div>
+                                    <span>Pending</span>
+                                  </div>
+                                )}
+                              </td>
                             </tr>
                           );
                         })
                       ) : !loading && (searchTerm || startDate || endDate || nameFilter || historyData.length === 0) ? (
                         <tr>
                           <td
-                            colSpan={userRole === "admin" ? 12 : 9}
+                            colSpan={userRole === "admin" ? 13 : 11}
                             className="px-6 py-4 text-center text-gray-500"
                           >
                             {searchTerm || startDate || endDate || nameFilter
