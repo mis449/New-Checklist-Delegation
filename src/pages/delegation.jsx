@@ -79,6 +79,11 @@ function DelegationDataPage() {
     isOpen: false,
     itemCount: 0,
   });
+  const [isReassigning, setIsReassigning] = useState(false);
+  const [reassignModal, setReassignModal] = useState({
+    isOpen: false,
+    itemCount: 0,
+  });
   const [delegationData, setDelegationData] = useState([]);
   const [whatsappNames, setWhatsappNames] = useState([]);
 
@@ -1412,6 +1417,95 @@ function DelegationDataPage() {
     }
   };
 
+  // RE-ASSIGN: Handler to open confirmation modal
+  const handleReassignTask = () => {
+    if (selectedHistoryItems.length === 0) return;
+    if (isReassigning) return;
+    setReassignModal({
+      isOpen: true,
+      itemCount: selectedHistoryItems.length,
+    });
+  };
+
+  // RE-ASSIGN: Confirmation modal component
+  const ReassignConfirmationModal = ({ isOpen, itemCount, onConfirm, onCancel }) => {
+    if (!isOpen) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+          <div className="flex items-center justify-center mb-4">
+            <div className="bg-red-100 text-red-600 rounded-full p-3 mr-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-gray-800">Re-assign Tasks</h2>
+          </div>
+          <p className="text-gray-600 text-center mb-6">
+            Are you sure you want to re-assign {itemCount}{" "}
+            {itemCount === 1 ? "task" : "tasks"}? This will remove the row data and Admin Done status from the DELEGATION DONE sheet so the task can be re-assigned.
+          </p>
+          <div className="flex justify-center space-x-4">
+            <button onClick={onCancel} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors">Cancel</button>
+            <button onClick={onConfirm} className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">Confirm Re-assign</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // RE-ASSIGN: Execute the re-assign (delete rows from DELEGATION DONE)
+  const confirmReassign = async () => {
+    setReassignModal({ isOpen: false, itemCount: 0 });
+    setIsReassigning(true);
+
+    try {
+      // Delete each selected row from DELEGATION DONE sheet
+      for (const historyItem of selectedHistoryItems) {
+        // Only process items that have a _rowIndex (i.e., from DELEGATION DONE sheet)
+        if (!historyItem._rowIndex || historyItem._isFromMainSheet) continue;
+
+        const formData = new FormData();
+        formData.append("sheetName", CONFIG.TARGET_SHEET_NAME);
+        formData.append("action", "update");
+        formData.append("rowIndex", historyItem._rowIndex);
+
+        // Send empty row to clear the entire row in DELEGATION DONE
+        const emptyRow = Array(16).fill("");
+        formData.append("rowData", JSON.stringify(emptyRow));
+
+        await fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: "POST",
+          body: formData,
+          mode: "no-cors",
+        });
+      }
+
+      // Remove processed items from local history view
+      setHistoryData((prev) =>
+        prev.filter(
+          (item) =>
+            !selectedHistoryItems.some((selected) => selected._id === item._id)
+        )
+      );
+
+      setSelectedHistoryItems([]);
+      setSuccessMessage(
+        `Successfully re-assigned ${selectedHistoryItems.length} task(s)! They can now be re-submitted.`
+      );
+
+      // Refresh data
+      setTimeout(() => {
+        fetchSheetData();
+      }, 1500);
+    } catch (error) {
+      console.error("Error re-assigning tasks:", error);
+      setSuccessMessage(`Failed to re-assign tasks: ${error.message}`);
+    } finally {
+      setIsReassigning(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -1471,17 +1565,26 @@ function DelegationDataPage() {
             {showHistory &&
               userRole === "admin" &&
               selectedHistoryItems.length > 0 && (
-                <div className="fixed top-40 right-10 z-50">
+                <>
                   <button
                     onClick={handleMarkMultipleDone}
                     disabled={markingAsDone}
-                    className="rounded-md bg-green-600 text-white px-4 py-2 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="rounded-md bg-green-600 text-white px-4 py-2 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                   >
                     {markingAsDone
                       ? "Processing..."
                       : `Mark ${selectedHistoryItems.length} Items as Admin Done`}
                   </button>
-                </div>
+                  <button
+                    onClick={handleReassignTask}
+                    disabled={isReassigning}
+                    className="rounded-md bg-red-600 text-white px-4 py-2 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    {isReassigning
+                      ? "Processing..."
+                      : `Re-assign ${selectedHistoryItems.length} Task(s)`}
+                  </button>
+                </>
               )}
           </div>
         </div>
@@ -2566,6 +2669,12 @@ function DelegationDataPage() {
           itemCount={confirmationModal.itemCount}
           onConfirm={confirmMarkDone}
           onCancel={() => setConfirmationModal({ isOpen: false, itemCount: 0 })}
+        />
+        <ReassignConfirmationModal
+          isOpen={reassignModal.isOpen}
+          itemCount={reassignModal.itemCount}
+          onConfirm={confirmReassign}
+          onCancel={() => setReassignModal({ isOpen: false, itemCount: 0 })}
         />
       </div>
     </AdminLayout>

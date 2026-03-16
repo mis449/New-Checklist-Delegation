@@ -411,6 +411,94 @@ export default function SettingsPage() {
     }
   };
 
+  const handleLeaveSubmit = async () => {
+    if (selectedTasks.size === 0) {
+      alert("Please select at least one task.");
+      return;
+    }
+
+    setIsSubmittingLeave(true);
+    try {
+      const tasksToUpdate = leaveTasks.filter(task => selectedTasks.has(task.taskId));
+      
+      const formatDateForLeave = (dateStr) => {
+        if (!dateStr) return "";
+        const parts = dateStr.split("-");
+        if (parts.length === 3) {
+          return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dateStr;
+      };
+
+      const leaveStatusText = `Leave ${formatDateForLeave(leaveStartDate)}- ${formatDateForLeave(leaveEndDate)}`;
+      
+      // Fetch latest Checklist data once to get full rows
+      const sheetResponse = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=Checklist&action=fetch`);
+      const sheetText = await sheetResponse.text();
+      let sheetData;
+      try {
+        sheetData = JSON.parse(sheetText);
+      } catch (e) {
+        const jsonStart = sheetText.indexOf("{");
+        const jsonEnd = sheetText.lastIndexOf("}");
+        sheetData = JSON.parse(sheetText.substring(jsonStart, jsonEnd + 1));
+      }
+      
+      let rows = sheetData.table?.rows || sheetData.values?.map((row) => ({ c: row.map((val) => ({ v: val })) })) || sheetData;
+
+      // Process each task update
+      for (const task of tasksToUpdate) {
+        const rowIndex = task.rowIndex;
+        const row = rows[rowIndex - 1]; // rowIndex is 1-indexed
+        
+        // Extract original values
+        let rowValues = row.c 
+          ? row.c.map(cell => cell && cell.v !== undefined ? cell.v : "") 
+          : row;
+        
+        // Prepare the updated row (size 17 for Column Q)
+        const updatedRow = [...rowValues];
+        while (updatedRow.length < 17) updatedRow.push("");
+        
+        // FORMAT Timestamp (index 0) and Task Start Date (index 6) as DD/MM/YYYY
+        // as requested to prevent formula/formatting errors in the sheet
+        updatedRow[0] = parseGoogleSheetDate(rowValues[0]);
+        updatedRow[6] = parseGoogleSheetDate(rowValues[6]);
+        
+        // DO NOT submit Task ID (index 1) - it has a formula in the sheet
+        // Sending any value overwrites the formula and causes #REF! error
+        updatedRow[1] = "";
+        
+        // Update Column Q (index 16) with the Leave status
+        updatedRow[16] = leaveStatusText;
+        
+        const formPayload = new FormData();
+        formPayload.append("sheetName", "Checklist");
+        formPayload.append("action", "update");
+        formPayload.append("rowIndex", rowIndex);
+        formPayload.append("rowData", JSON.stringify(updatedRow));
+        
+        await fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: "POST",
+          mode: "no-cors",
+          body: formPayload,
+        });
+      }
+      
+      alert(`Selected tasks marked as "${leaveStatusText}" successfully!`);
+      // Update local state and UI
+      setSelectedLeaveUser(null);
+      setLeaveTasks([]);
+      setSelectedTasks(new Set());
+      fetchUsers();
+    } catch (error) {
+      console.error("Error submitting leave:", error);
+      alert("Failed to update tasks. Please try again.");
+    } finally {
+      setIsSubmittingLeave(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
