@@ -277,10 +277,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                   {username || "User"} {userRole === "admin" ? "(Admin)" : ""}
                 </p>
                 <p className="text-xs text-blue-600">
-                  {userEmail ||
-                    (username
-                      ? `${username.toLowerCase()}@example.com`
-                      : "user@example.com")}
+                  {userEmail || ""}
                 </p>
               </div>
             </div>
@@ -462,10 +459,7 @@ export default function AdminLayout({ children, darkMode, toggleDarkMode }) {
                       {userRole === "admin" ? "(Admin)" : ""}
                     </p>
                     <p className="text-xs text-blue-600">
-                      {userEmail ||
-                        (username
-                          ? `${username.toLowerCase()}@example.com`
-                          : "user@example.com")}
+                      {userEmail || ""}
                     </p>
                   </div>
                 </div>

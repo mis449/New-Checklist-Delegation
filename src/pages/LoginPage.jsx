@@ -48,7 +48,7 @@ const LoginPage = () => {
         setIsDataLoading(true);
 
         // Fetch data using Apps Script Web App to avoid CORS issues
-        const response = await fetch(`${SCRIPT_URL}?action=fetch&sheet=master`);
+        const response = await fetch(`${SCRIPT_URL}?action=fetch&sheet=Whatsapp`);
         const data = await response.json();
 
         // Create userCredentials and userRoles objects from the sheet data
