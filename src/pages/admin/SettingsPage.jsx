@@ -197,11 +197,22 @@ export default function SettingsPage() {
     fetchUsers();
   }, []);
 
-  const filteredUsers = usersInfo.filter(user => 
-    Object.values(user).some(val => 
+  const currentUserRole = sessionStorage.getItem("role");
+  const currentUsername = sessionStorage.getItem("username");
+
+  const filteredUsers = usersInfo.filter(user => {
+    const matchesSearch = Object.values(user).some(val => 
       String(val).toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+    );
+    
+    if (currentUserRole === 'admin' || sessionStorage.getItem("isAdmin") === "true") {
+      return matchesSearch;
+    }
+    
+    // For non-admin, only show their own record
+    return matchesSearch && user.username.toLowerCase() === currentUsername?.toLowerCase();
+  });
+
 
   const uniqueDepartments = [];
   const seenDepts = new Set();
@@ -538,7 +549,7 @@ export default function SettingsPage() {
             >
               <LogOut className="w-4 h-4 mr-2" /> Leave
             </button>
-            {activeTab !== "leave" && (
+            {activeTab !== "leave" && (currentUserRole === 'admin' || sessionStorage.getItem("isAdmin") === "true") && (
               <button
                 onClick={() => {
                   if (activeTab === "departments") {
