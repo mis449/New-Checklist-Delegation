@@ -1631,7 +1631,7 @@ function DelegationDataPage() {
               : CONFIG.PAGE_CONFIG.title}
           </h1>
 
-          <div className="flex space-x-4">
+          <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-3 sm:gap-4 sm:space-x-0">
             <div className="relative">
               <Search
                 className="absolute left-3 top-7 transform -translate-y-1/2 text-gray-400"
@@ -1644,13 +1644,13 @@ function DelegationDataPage() {
                 }
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-purple-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="pl-10 pr-4 py-2 w-full border border-purple-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
 
             <button
               onClick={toggleHistory}
-              className="w-52 gradient-bg py-3 px-4 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="w-full sm:w-52 gradient-bg py-3 px-4 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {showHistory ? (
                 <div className="flex items-center">
@@ -1669,7 +1669,7 @@ function DelegationDataPage() {
               <button
                 onClick={handleSubmit}
                 disabled={selectedItemsCount === 0 || isSubmitting}
-                className="w-52 gradient-bg py-3 px-4 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="w-full sm:w-52 gradient-bg py-3 px-4 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {isSubmitting
                   ? "Processing..."
@@ -1724,7 +1724,7 @@ function DelegationDataPage() {
           </div>
 
           {/* Date Filter */}
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center space-x-2">
               <label
                 htmlFor="start-date"
@@ -2152,7 +2152,7 @@ function DelegationDataPage() {
                                     </div>
                                     <button
                                       onClick={() => setEditingDescription(prev => ({ ...prev, [history._id]: true }))}
-                                      className="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity mt-1 flex items-center w-max"
+                                      className="text-xs text-blue-600 md:opacity-0 md:group-hover:opacity-100 transition-opacity mt-1 flex items-center w-max"
                                     >
                                       <Edit size={12} className="mr-1" /> Edit
                                     </button>
@@ -2321,7 +2321,27 @@ function DelegationDataPage() {
                           </div>
 
                           <div>
-                            <div className="text-sm text-gray-900 font-medium">{account["col5"] || "—"}</div>
+                            {editingDescription[account._id] ? (
+                              <div className="flex flex-col space-y-2 mt-2 mb-2">
+                                <textarea
+                                  autoFocus
+                                  defaultValue={account["col5"] || ""}
+                                  onChange={(e) => setTempDescription(prev => ({ ...prev, [account._id]: e.target.value }))}
+                                  className="border rounded-md px-2 py-1 w-full text-sm min-h-[60px]"
+                                />
+                                <div className="flex space-x-2">
+                                  <button onClick={() => handleEditDescription(account._id, account["col5"], account, false)} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200">Save</button>
+                                  <button onClick={() => setEditingDescription(prev => ({ ...prev, [account._id]: false }))} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="group flex flex-col mb-1 relative pb-6">
+                                <div className="text-sm text-gray-900 font-medium">{account["col5"] || "—"}</div>
+                                <button onClick={() => setEditingDescription(prev => ({ ...prev, [account._id]: true }))} className="absolute bottom-0 right-0 text-xs text-blue-600 flex items-center w-max p-1 bg-gray-50 rounded border border-gray-200">
+                                  <Edit size={12} className="mr-1" /> Edit
+                                </button>
+                              </div>
+                            )}
                             <div className="text-xs text-gray-500 mt-1">Given By: {account["col3"] || "—"} • Name: {account["col4"] || "—"}</div>
                           </div>
 
