@@ -96,6 +96,8 @@ function DelegationDataPage() {
 
   const [editingRemarks, setEditingRemarks] = useState({});
   const [tempRemarks, setTempRemarks] = useState({});
+  const [editingDescription, setEditingDescription] = useState({});
+  const [tempDescription, setTempDescription] = useState({});
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
@@ -1239,6 +1241,80 @@ function DelegationDataPage() {
     }
   };
 
+  const handleEditDescription = async (id, currentDescription, item, isHistory = false) => {
+    try {
+      const formData = new FormData();
+      formData.append("sheetName", isHistory ? CONFIG.TARGET_SHEET_NAME : CONFIG.SOURCE_SHEET_NAME);
+      formData.append("action", "update");
+      formData.append("rowIndex", item._rowIndex);
+
+      const ensureDateOnly = (dateVal) => {
+        if (!dateVal) return "";
+        let str = String(dateVal).trim();
+        if (str.includes("T") && str.includes("-")) {
+          const d = new Date(str);
+          if (!isNaN(d.getTime())) {
+            const day = d.getDate().toString().padStart(2, "0");
+            const month = (d.getMonth() + 1).toString().padStart(2, "0");
+            return `${day}/${month}/${d.getFullYear()}`;
+          }
+        }
+        if (str.includes(" ")) {
+          str = str.split(" ")[0];
+        }
+        return str;
+      };
+
+      const rowData = [];
+      const colCount = isHistory ? 16 : 21;
+      for (let i = 0; i < colCount; i++) {
+        if (!isHistory && (i === 10 || i === 13)) {
+          rowData[i] = ""; // Planned Date and Status are formulas, protect them
+        } else if (i === 0 || i === 3 || i === 6 || (!isHistory && i === 11)) {
+          rowData[i] = ensureDateOnly(item[`col${i}`]);
+        } else if (i === (isHistory ? 8 : 5)) {
+          rowData[i] = tempDescription[id] !== undefined ? tempDescription[id] : (currentDescription || "");
+        } else {
+          rowData[i] = item[`col${i}`] !== undefined && item[`col${i}`] !== null ? item[`col${i}`] : "";
+        }
+      }
+
+      formData.append("rowData", JSON.stringify(rowData));
+
+      const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+
+      if (result.success) {
+        const newDescription = tempDescription[id] !== undefined ? tempDescription[id] : (currentDescription || "");
+        
+        if (isHistory) {
+          setHistoryData(prev => prev.map(hist => hist._id === id ? { ...hist, col8: newDescription } : hist));
+        } else {
+          setAccountData(prev => prev.map(acc => acc._id === id ? { ...acc, col5: newDescription } : acc));
+        }
+        
+        setEditingDescription(prev => ({ ...prev, [id]: false }));
+        setSuccessMessage("Task Description updated successfully!");
+
+        setTempDescription(prev => {
+          const newTemp = { ...prev };
+          delete newTemp[id];
+          return newTemp;
+        });
+      } else {
+        throw new Error(result.error || "Failed to update description");
+      }
+    } catch (error) {
+      console.error("Error updating description:", error);
+      setSuccessMessage(`Failed to update description: ${error.message}`);
+    }
+  };
+
   const handleEditRemarks = async (id, currentRemarks, historyItem) => {
     try {
       const formData = new FormData();
@@ -1246,9 +1322,34 @@ function DelegationDataPage() {
       formData.append("action", "update");
       formData.append("rowIndex", historyItem._rowIndex);
 
-      // Create row data array with empty values for all columns except remarks
-      const rowData = Array(16).fill(""); // Create empty array for 16 columns
-      rowData[4] = tempRemarks[id] || currentRemarks || ""; // Column E (index 4) is remarks
+      const ensureDateOnly = (dateVal) => {
+        if (!dateVal) return "";
+        let str = String(dateVal).trim();
+        if (str.includes("T") && str.includes("-")) {
+          const d = new Date(str);
+          if (!isNaN(d.getTime())) {
+            const day = d.getDate().toString().padStart(2, "0");
+            const month = (d.getMonth() + 1).toString().padStart(2, "0");
+            return `${day}/${month}/${d.getFullYear()}`;
+          }
+        }
+        if (str.includes(" ")) {
+          str = str.split(" ")[0];
+        }
+        return str;
+      };
+
+      const rowData = [];
+      const colCount = 16;
+      for (let i = 0; i < colCount; i++) {
+        if (i === 0 || i === 3 || i === 6) {
+          rowData[i] = ensureDateOnly(historyItem[`col${i}`]);
+        } else if (i === 4) {
+          rowData[i] = tempRemarks[id] !== undefined ? tempRemarks[id] : (currentRemarks || "");
+        } else {
+          rowData[i] = historyItem[`col${i}`] !== undefined && historyItem[`col${i}`] !== null ? historyItem[`col${i}`] : "";
+        }
+      }
 
       formData.append("rowData", JSON.stringify(rowData));
 
@@ -1264,18 +1365,15 @@ function DelegationDataPage() {
       const result = await response.json();
 
       if (result.success) {
-        // Update local state
+        const newRemarks = tempRemarks[id] !== undefined ? tempRemarks[id] : (currentRemarks || "");
         setHistoryData((prev) =>
           prev.map((item) =>
-            item._id === id
-              ? { ...item, col4: tempRemarks[id] || currentRemarks || "" }
-              : item
+            item._id === id ? { ...item, col4: newRemarks } : item
           )
         );
         setEditingRemarks((prev) => ({ ...prev, [id]: false }));
         setSuccessMessage("Remarks updated successfully!");
 
-        // Clear temporary remarks
         setTempRemarks((prev) => {
           const newTemp = { ...prev };
           delete newTemp[id];
@@ -1999,12 +2097,50 @@ function DelegationDataPage() {
                                 </div>
                               </td>
                               <td className="px-6 py-4 min-w-[250px]">
-                                <div
-                                  className="text-sm text-gray-900 max-w-md whitespace-normal break-words"
-                                  title={history["col8"]}
-                                >
-                                  {history["col8"] || "—"}
-                                </div>
+                                {editingDescription[history._id] ? (
+                                  <div className="flex flex-col space-y-2">
+                                    <textarea
+                                      autoFocus
+                                      defaultValue={history["col8"] || ""}
+                                      onChange={(e) =>
+                                        setTempDescription((prev) => ({
+                                          ...prev,
+                                          [history._id]: e.target.value,
+                                        }))
+                                      }
+                                      className="border rounded-md px-2 py-1 w-full text-sm min-h-[60px]"
+                                    />
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => handleEditDescription(history._id, history["col8"], history, true)}
+                                        className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingDescription(prev => ({ ...prev, [history._id]: false }))}
+                                        className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="group flex flex-col">
+                                    <div
+                                      className="text-sm text-gray-900 max-w-md whitespace-normal break-words"
+                                      title={history["col8"]}
+                                    >
+                                      {history["col8"] || "—"}
+                                    </div>
+                                    <button
+                                      onClick={() => setEditingDescription(prev => ({ ...prev, [history._id]: true }))}
+                                      className="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity mt-1 flex items-center w-max"
+                                    >
+                                      <Edit size={12} className="mr-1" /> Edit
+                                    </button>
+                                  </div>
+                                )}
                               </td>
                               <td className="px-6 py-4 bg-purple-50 min-w-[200px]">
                                 {editingRemarks[history._id] ? (
@@ -2464,12 +2600,50 @@ function DelegationDataPage() {
                                 </div>
                               </td>
                               <td className="px-6 py-4 min-w-[250px]">
-                                <div
-                                  className="text-sm text-gray-900 max-w-md whitespace-normal break-words"
-                                  title={account["col5"]}
-                                >
-                                  {account["col5"] || "—"}
-                                </div>
+                                {editingDescription[account._id] ? (
+                                  <div className="flex flex-col space-y-2">
+                                    <textarea
+                                      autoFocus
+                                      defaultValue={account["col5"] || ""}
+                                      onChange={(e) =>
+                                        setTempDescription((prev) => ({
+                                          ...prev,
+                                          [account._id]: e.target.value,
+                                        }))
+                                      }
+                                      className="border rounded-md px-2 py-1 w-full text-sm min-h-[60px]"
+                                    />
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => handleEditDescription(account._id, account["col5"], account, false)}
+                                        className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingDescription(prev => ({ ...prev, [account._id]: false }))}
+                                        className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="group flex flex-col">
+                                    <div
+                                      className="text-sm text-gray-900 max-w-md whitespace-normal break-words"
+                                      title={account["col5"]}
+                                    >
+                                      {account["col5"] || "—"}
+                                    </div>
+                                    <button
+                                      onClick={() => setEditingDescription(prev => ({ ...prev, [account._id]: true }))}
+                                      className="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity mt-1 flex items-center w-max"
+                                    >
+                                      <Edit size={12} className="mr-1" /> Edit
+                                    </button>
+                                  </div>
+                                )}
                               </td>
                               <td
                                 className={`px-6 py-4 whitespace-nowrap ${!account["col17"] ? "bg-yellow-50" : ""

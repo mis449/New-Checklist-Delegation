@@ -133,7 +133,12 @@ const MemoizedTaskRow = memo(({
   onCheckboxClick,
   onAdditionalDataChange,
   onRemarksChange,
-  onImageUpload
+  onImageUpload,
+  isEditingDesc,
+  tempDesc,
+  onToggleEditDesc,
+  onTempDescChange,
+  onSaveDesc
 }) => {
   const isLeave = isLeaveStatus(account["col16"]);
   const taskStatus = isLeave ? "Leave" : getTaskStatus(account["col10"], account["col15"], account["col6"], account["col4"]);
@@ -205,9 +210,34 @@ const MemoizedTaskRow = memo(({
         />
       </td>
       <td className="px-3 py-4 min-w-[200px]">
-        <div className={`text-sm break-words font-medium text-gray-900 ${isDisabled ? "opacity-50" : ""}`} title={account["col5"]}>
-          {account["col5"] || "—"}
-        </div>
+        {isEditingDesc ? (
+          <div className="flex flex-col gap-1 w-full">
+            <textarea 
+              value={tempDesc !== undefined ? tempDesc : (account["col5"] || "")}
+              onChange={(e) => onTempDescChange(account._id, e.target.value)}
+              className="border border-gray-300 rounded-md px-2 py-1 text-sm w-full font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              rows={2}
+              autoFocus
+            />
+            <div className="flex justify-end space-x-2 mt-1">
+              <button onClick={() => onSaveDesc(account._id, tempDesc !== undefined ? tempDesc : account["col5"], account)} className="text-green-600 hover:text-green-800" title="Save"><CheckCircle2 size={16}/></button>
+              <button onClick={() => onToggleEditDesc(account._id, false)} className="text-red-600 hover:text-red-800" title="Cancel"><X size={16}/></button>
+            </div>
+          </div>
+        ) : (
+          <div className="group/edit flex items-start justify-between min-w-[150px]">
+            <div className={`text-sm break-words font-medium text-gray-900 ${isDisabled ? "opacity-50" : ""}`} title={account["col5"]}>
+              {account["col5"] || "—"}
+            </div>
+            <button 
+              onClick={() => onToggleEditDesc(account._id, true)} 
+              className="text-blue-500 opacity-0 group-hover/edit:opacity-100 transition-opacity p-1 hover:bg-blue-50 rounded ml-2 flex-shrink-0"
+              title="Edit Task Description"
+            >
+              <Edit size={14}/>
+            </button>
+          </div>
+        )}
       </td>
       <td className={`px-3 py-4 ${isNotToday ? "bg-white border-l-4 border-white" : "hover:bg-gray-50"} min-w-[140px]`}>
         <div className={`text-sm break-words text-gray-900 ${isDisabled ? "opacity-50" : ""}`}>
@@ -313,6 +343,8 @@ function AccountDataPage() {
   const [nameSearchTerm, setNameSearchTerm] = useState("") // Search term for name dropdown
   const [editingRemarks, setEditingRemarks] = useState({});
   const [tempRemarks, setTempRemarks] = useState({});
+  const [editingDescription, setEditingDescription] = useState({});
+  const [tempDescription, setTempDescription] = useState({});
   const [displayLimit, setDisplayLimit] = useState(50)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [historyDisplayLimit, setHistoryDisplayLimit] = useState(500)
@@ -348,6 +380,94 @@ function AccountDataPage() {
   }, [isDropdownOpen]);
 
 
+  const handleEditDescription = async (id, currentDescription, item) => {
+    try {
+      const formData = new FormData();
+      formData.append("sheetName", CONFIG.SHEET_NAME);
+      formData.append("action", "update");
+      formData.append("rowIndex", item._rowIndex);
+
+      const ensureDateOnly = (dateVal) => {
+        if (!dateVal) return "";
+        let str = String(dateVal).trim();
+        if (str.includes("T") && str.includes("-")) {
+          const d = new Date(str);
+          if (!isNaN(d.getTime())) {
+            const day = d.getDate().toString().padStart(2, "0");
+            const month = (d.getMonth() + 1).toString().padStart(2, "0");
+            return `${day}/${month}/${d.getFullYear()}`;
+          }
+        }
+        if (str.includes(" ")) {
+          str = str.split(" ")[0];
+        }
+        return str;
+      };
+
+      // Preserve existing row data, explicitly omitting formula columns and formatting dates
+      const rowData = [];
+      for (let i = 0; i < 17; i++) {
+        if (i === 1) {
+          // Task ID is formula-driven, do not submit from frontend
+          rowData[i] = "";
+        } else if (i === 0 || i === 6) {
+          // Timestamp and Task Start Date must be purely DD/MM/YYYY format
+          rowData[i] = ensureDateOnly(item[`col${i}`]);
+        } else if (i === 5) {
+          // Column F (index 5) is description
+          rowData[i] = tempDescription[id] !== undefined ? tempDescription[id] : (currentDescription || "");
+        } else {
+          // Preserve other columns as they are
+          rowData[i] = item[`col${i}`] !== undefined && item[`col${i}`] !== null ? item[`col${i}`] : "";
+        }
+      }
+
+      formData.append("rowData", JSON.stringify(rowData));
+
+      const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Update local state in both data arrays
+        const newDescription = tempDescription[id] !== undefined ? tempDescription[id] : (currentDescription || "");
+        
+        setAccountData(prev =>
+          prev.map(acc =>
+            acc._id === id ? { ...acc, col5: newDescription } : acc
+          )
+        );
+        setHistoryData(prev =>
+          prev.map(hist =>
+            hist._id === id ? { ...hist, col5: newDescription } : hist
+          )
+        );
+        
+        setEditingDescription(prev => ({ ...prev, [id]: false }));
+        setSuccessMessage("Task Description updated successfully!");
+
+        // Clear temporary description
+        setTempDescription(prev => {
+          const newTemp = { ...prev };
+          delete newTemp[id];
+          return newTemp;
+        });
+      } else {
+        throw new Error(result.error || "Failed to update description");
+      }
+    } catch (error) {
+      console.error("Error updating description:", error);
+      setSuccessMessage(`Failed to update description: ${error.message}`);
+    }
+  };
+
   const handleEditRemarks = async (id, currentRemarks, historyItem) => {
     try {
       const formData = new FormData();
@@ -355,9 +475,40 @@ function AccountDataPage() {
       formData.append("action", "update");
       formData.append("rowIndex", historyItem._rowIndex);
 
-      // Create row data array with empty values for all columns except remarks
-      const rowData = Array(15).fill(""); // Create empty array for 15 columns
-      rowData[13] = tempRemarks[id] || currentRemarks || ""; // Column N (index 13) is remarks
+      const ensureDateOnly = (dateVal) => {
+        if (!dateVal) return "";
+        let str = String(dateVal).trim();
+        if (str.includes("T") && str.includes("-")) {
+          const d = new Date(str);
+          if (!isNaN(d.getTime())) {
+            const day = d.getDate().toString().padStart(2, "0");
+            const month = (d.getMonth() + 1).toString().padStart(2, "0");
+            return `${day}/${month}/${d.getFullYear()}`;
+          }
+        }
+        if (str.includes(" ")) {
+          str = str.split(" ")[0];
+        }
+        return str;
+      };
+
+      // Preserve existing row data, explicitly omitting formula columns and formatting dates
+      const rowData = [];
+      for (let i = 0; i < 17; i++) {
+        if (i === 1) {
+          // Task ID is formula-driven, do not submit from frontend
+          rowData[i] = "";
+        } else if (i === 0 || i === 6) {
+          // Timestamp and Task Start Date must be purely DD/MM/YYYY format
+          rowData[i] = ensureDateOnly(historyItem[`col${i}`]);
+        } else if (i === 13) {
+          // Column N (index 13) is remarks
+          rowData[i] = tempRemarks[id] || currentRemarks || "";
+        } else {
+          // Preserve other columns
+          rowData[i] = historyItem[`col${i}`] !== undefined && historyItem[`col${i}`] !== null ? historyItem[`col${i}`] : "";
+        }
+      }
 
       formData.append("rowData", JSON.stringify(rowData));
 
@@ -1658,10 +1809,40 @@ function AccountDataPage() {
         formData.append("action", "update");
         formData.append("rowIndex", item._rowIndex);
 
-        const rowData = Array(17).fill("");
-        // Update Column K (Index 10) with today's date and Column Q (Index 16) with "Leave"
-        rowData[10] = todayStr; // Index 10 is Column K (Actual Date)
-        rowData[16] = "Leave"; // Index 16 is Column Q (Leave Status)
+        const ensureDateOnly = (dateVal) => {
+          if (!dateVal) return "";
+          let str = String(dateVal).trim();
+          if (str.includes("T") && str.includes("-")) {
+            const d = new Date(str);
+            if (!isNaN(d.getTime())) {
+              const day = d.getDate().toString().padStart(2, "0");
+              const month = (d.getMonth() + 1).toString().padStart(2, "0");
+              return `${day}/${month}/${d.getFullYear()}`;
+            }
+          }
+          if (str.includes(" ")) {
+            str = str.split(" ")[0];
+          }
+          return str;
+        };
+
+        // Preserve existing row data, explicitly omitting formula columns and formatting dates
+        const rowData = [];
+        for (let i = 0; i < 17; i++) {
+          if (i === 1) {
+            // Task ID is formula-driven, do not submit from frontend
+            rowData[i] = "";
+          } else if (i === 0 || i === 6) {
+            // Timestamp and Task Start Date must be purely DD/MM/YYYY format
+            rowData[i] = ensureDateOnly(item[`col${i}`]);
+          } else if (i === 10) {
+            rowData[i] = todayStr; // Index 10 is Column K (Actual Date)
+          } else if (i === 16) {
+            rowData[i] = "Leave"; // Index 16 is Column Q (Leave Status)
+          } else {
+            rowData[i] = item[`col${i}`] !== undefined && item[`col${i}`] !== null ? item[`col${i}`] : "";
+          }
+        }
 
         formData.append("rowData", JSON.stringify(rowData));
 
@@ -2203,12 +2384,34 @@ function AccountDataPage() {
                                 </div>
                               </td>
                               <td className="px-3 py-4 min-w-[200px]">
-                                <div
-                                  className="text-sm text-gray-900 break-words"
-                                  title={history["col5"]}
-                                >
-                                  {history["col5"] || "—"}
-                                </div>
+                                {editingDescription[history._id] ? (
+                                  <div className="flex flex-col gap-1 w-full">
+                                    <textarea 
+                                      value={tempDescription[history._id] !== undefined ? tempDescription[history._id] : (history["col5"] || "")}
+                                      onChange={(e) => setTempDescription(prev => ({ ...prev, [history._id]: e.target.value }))}
+                                      className="border border-gray-300 rounded-md px-2 py-1 text-sm w-full font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                      rows={2}
+                                      autoFocus
+                                    />
+                                    <div className="flex justify-end space-x-2 mt-1">
+                                      <button onClick={() => handleEditDescription(history._id, history["col5"], history)} className="text-green-600 hover:text-green-800" title="Save"><CheckCircle2 size={16}/></button>
+                                      <button onClick={() => setEditingDescription(prev => ({ ...prev, [history._id]: false }))} className="text-red-600 hover:text-red-800" title="Cancel"><X size={16}/></button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="group/edit flex items-start justify-between min-w-[150px]">
+                                    <div className="text-sm text-gray-900 break-words" title={history["col5"]}>
+                                      {history["col5"] || "—"}
+                                    </div>
+                                    <button 
+                                      onClick={() => setEditingDescription(prev => ({ ...prev, [history._id]: true }))} 
+                                      className="text-blue-500 opacity-0 group-hover/edit:opacity-100 transition-opacity p-1 hover:bg-blue-50 rounded ml-2 flex-shrink-0"
+                                      title="Edit Task Description"
+                                    >
+                                      <Edit size={14}/>
+                                    </button>
+                                  </div>
+                                )}
                               </td>
                               <td className="px-3 py-4 bg-blue-50 min-w-[80px]">
                                 <span
@@ -2480,6 +2683,11 @@ function AccountDataPage() {
                         onAdditionalDataChange={handleAdditionalDataChange}
                         onRemarksChange={handleRemarksChange}
                         onImageUpload={handleImageUpload}
+                        isEditingDesc={editingDescription[account._id]}
+                        tempDesc={tempDescription[account._id]}
+                        onToggleEditDesc={(id, val) => setEditingDescription(prev => ({ ...prev, [id]: val }))}
+                        onTempDescChange={(id, val) => setTempDescription(prev => ({ ...prev, [id]: val }))}
+                        onSaveDesc={(id, currentDesc, item) => handleEditDescription(id, currentDesc, item)}
                       />
                     ))}
 
