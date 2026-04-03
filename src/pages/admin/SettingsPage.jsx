@@ -150,41 +150,84 @@ export default function SettingsPage() {
   const fetchUserTasks = async (username) => {
     try {
       setLoadingLeaveTasks(true);
-      const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=Checklist&action=fetch`);
-      if (!response.ok) throw new Error("Failed to fetch tasks");
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        const jsonStart = text.indexOf("{");
-        const jsonEnd = text.lastIndexOf("}");
-        data = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
-      }
+      // Fetch Checklist and Delegation data
+      const [checklistRes, delegationRes] = await Promise.all([
+        fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=Checklist&action=fetch`),
+        fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=Delegation&action=fetch`)
+      ]);
       
-      let rows = data.table?.rows || data.values?.map((row) => ({ c: row.map((val) => ({ v: val })) })) || data;
+      if (!checklistRes.ok || !delegationRes.ok) throw new Error("Failed to fetch tasks");
+      
+      const checklistText = await checklistRes.text();
+      const delegationText = await delegationRes.text();
+      
+      let checklistData, delegationData;
+      
+      const parseResponseStr = (text) => {
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          const start = text.indexOf("{");
+          const end = text.lastIndexOf("}");
+          return JSON.parse(text.substring(start, end + 1));
+        }
+      };
+
+      checklistData = parseResponseStr(checklistText);
+      delegationData = parseResponseStr(delegationText);
+      
       const tasks = [];
       
-      rows.forEach((row, rowIndex) => {
-        if (rowIndex === 0) return;
-        let rowValues = row.c ? row.c.map(cell => cell?.v || "") : row;
+      const processRows = (data, sheetName) => {
+        let rows = data.table?.rows || data.values?.map((row) => ({ c: row.map((val) => ({ v: val })) })) || data;
         
-        const taskUsername = rowValues[4] || "";
-        if (taskUsername.toLowerCase() === username.toLowerCase()) {
-           const actualDate = rowValues[10];
-           const adminDone = rowValues[15];
-           const isLeave = rowValues[16];
-           
-           if (!actualDate && adminDone !== "Admin Done" && !String(isLeave).toLowerCase().includes("leave")) {
-             tasks.push({
-               taskId: rowValues[1] || "",
-               description: rowValues[5] || "",
-               date: parseGoogleSheetDate(rowValues[6]),
-               rowIndex: rowIndex + 1
-             });
-           }
-        }
-      });
+        rows.forEach((row, rowIndex) => {
+          if (rowIndex === 0) return; // Skip headers
+          let rowValues = row.c ? row.c.map(cell => cell?.v || "") : row;
+          
+          if (sheetName === "Checklist") {
+            const taskUsername = rowValues[4] || "";
+            if (taskUsername.toLowerCase() === username.toLowerCase()) {
+               const actualDate = rowValues[10];
+               const adminDone = rowValues[15];
+               const isLeave = rowValues[16];
+               
+               if (!actualDate && adminDone !== "Admin Done" && !String(isLeave).toLowerCase().includes("leave")) {
+                 tasks.push({
+                   id: `checklist-${rowIndex}`,
+                   sheetName: "Checklist",
+                   taskId: rowValues[1] || "",
+                   description: rowValues[5] || "",
+                   date: parseGoogleSheetDate(rowValues[6]),
+                   rowIndex: rowIndex + 1
+                 });
+               }
+            }
+          } else if (sheetName === "Delegation") {
+            const taskUsername = rowValues[4] || "";
+            if (taskUsername.toLowerCase() === username.toLowerCase()) {
+               const actualDate = rowValues[11];
+               const status = rowValues[13];
+               const isLeave = rowValues[21]; // V column
+               
+               if (!actualDate && status !== "Done" && !String(isLeave).toLowerCase().includes("leave")) {
+                 tasks.push({
+                   id: `delegation-${rowIndex}`,
+                   sheetName: "Delegation",
+                   taskId: rowValues[1] || "",
+                   description: rowValues[5] || "",
+                   date: parseGoogleSheetDate(rowValues[6]),
+                   rowIndex: rowIndex + 1
+                 });
+               }
+            }
+          }
+        });
+      };
+
+      processRows(checklistData, "Checklist");
+      processRows(delegationData, "Delegation");
+      
       setLeaveTasks(tasks);
     } catch (err) {
       console.error(err);
@@ -430,7 +473,7 @@ export default function SettingsPage() {
 
     setIsSubmittingLeave(true);
     try {
-      const tasksToUpdate = leaveTasks.filter(task => selectedTasks.has(task.taskId));
+      const tasksToUpdate = leaveTasks.filter(task => selectedTasks.has(task.id));
       
       const formatDateForLeave = (dateStr) => {
         if (!dateStr) return "";
@@ -443,23 +486,37 @@ export default function SettingsPage() {
 
       const leaveStatusText = `Leave ${formatDateForLeave(leaveStartDate)}- ${formatDateForLeave(leaveEndDate)}`;
       
-      // Fetch latest Checklist data once to get full rows
-      const sheetResponse = await fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=Checklist&action=fetch`);
-      const sheetText = await sheetResponse.text();
-      let sheetData;
-      try {
-        sheetData = JSON.parse(sheetText);
-      } catch (e) {
-        const jsonStart = sheetText.indexOf("{");
-        const jsonEnd = sheetText.lastIndexOf("}");
-        sheetData = JSON.parse(sheetText.substring(jsonStart, jsonEnd + 1));
-      }
+      // Fetch latest data for both Checklist and Delegation
+      const [checklistRes, delegationRes] = await Promise.all([
+        fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=Checklist&action=fetch`),
+        fetch(`${CONFIG.APPS_SCRIPT_URL}?sheet=Delegation&action=fetch`)
+      ]);
       
-      let rows = sheetData.table?.rows || sheetData.values?.map((row) => ({ c: row.map((val) => ({ v: val })) })) || sheetData;
+      const parseResponseStr = async (response) => {
+        const text = await response.text();
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          const start = text.indexOf("{");
+          const end = text.lastIndexOf("}");
+          return JSON.parse(text.substring(start, end + 1));
+        }
+      };
+
+      const checklistData = await parseResponseStr(checklistRes);
+      const delegationData = await parseResponseStr(delegationRes);
+      
+      const getRows = (data) => data.table?.rows || data.values?.map((row) => ({ c: row.map((val) => ({ v: val })) })) || data;
+      const checklistRows = getRows(checklistData);
+      const delegationRows = getRows(delegationData);
 
       // Process each task update
       for (const task of tasksToUpdate) {
+        const sheetName = task.sheetName;
         const rowIndex = task.rowIndex;
+        const rows = sheetName === "Checklist" ? checklistRows : delegationRows;
+        if (!rows) continue;
+        
         const row = rows[rowIndex - 1]; // rowIndex is 1-indexed
         
         // Extract original values
@@ -467,24 +524,26 @@ export default function SettingsPage() {
           ? row.c.map(cell => cell && cell.v !== undefined ? cell.v : "") 
           : row;
         
-        // Prepare the updated row (size 17 for Column Q)
+        // Prepare the updated row
         const updatedRow = [...rowValues];
-        while (updatedRow.length < 17) updatedRow.push("");
         
         // FORMAT Timestamp (index 0) and Task Start Date (index 6) as DD/MM/YYYY
-        // as requested to prevent formula/formatting errors in the sheet
         updatedRow[0] = parseGoogleSheetDate(rowValues[0]);
         updatedRow[6] = parseGoogleSheetDate(rowValues[6]);
         
-        // DO NOT submit Task ID (index 1) - it has a formula in the sheet
-        // Sending any value overwrites the formula and causes #REF! error
-        updatedRow[1] = "";
-        
-        // Update Column Q (index 16) with the Leave status
-        updatedRow[16] = leaveStatusText;
+        if (sheetName === "Checklist") {
+          updatedRow[1] = ""; // Task ID is formula in Checklist
+          while (updatedRow.length < 17) updatedRow.push("");
+          updatedRow[16] = leaveStatusText; // Column Q (16)
+        } else if (sheetName === "Delegation") {
+          while (updatedRow.length < 22) updatedRow.push("");
+          updatedRow[10] = ""; // Planned Date is formula (col K)
+          updatedRow[13] = ""; // Status is formula (col N)
+          updatedRow[21] = leaveStatusText; // Column V (21)
+        }
         
         const formPayload = new FormData();
-        formPayload.append("sheetName", "Checklist");
+        formPayload.append("sheetName", sheetName);
         formPayload.append("action", "update");
         formPayload.append("rowIndex", rowIndex);
         formPayload.append("rowData", JSON.stringify(updatedRow));
@@ -501,7 +560,6 @@ export default function SettingsPage() {
       setSelectedLeaveUser(null);
       setLeaveTasks([]);
       setSelectedTasks(new Set());
-      fetchUsers();
     } catch (error) {
       console.error("Error submitting leave:", error);
       alert("Failed to update tasks. Please try again.");
@@ -894,25 +952,26 @@ export default function SettingsPage() {
                     </div>
                   ) : (
                     <table className="w-full text-left border-collapse relative">
-                      <thead className="bg-white sticky top-0 z-10 shadow-sm outline outline-1 outline-gray-200">
-                        <tr className="text-xs uppercase text-gray-500 font-bold">
-                          <th className="px-4 py-3 w-12 text-center bg-white">
+                      <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-y border-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-center w-12">
                             <input 
                               type="checkbox" 
-                              className="w-4 h-4 text-purple-600 rounded border-gray-300"
+                              className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                               checked={filteredLeaveTasks.length > 0 && selectedTasks.size === filteredLeaveTasks.length}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedTasks(new Set(filteredLeaveTasks.map(t => t.taskId)));
+                                  setSelectedTasks(new Set(filteredLeaveTasks.map(t => t.id)));
                                 } else {
                                   setSelectedTasks(new Set());
                                 }
                               }}
                             />
                           </th>
-                          <th className="px-4 py-3 bg-white">Task ID</th>
-                          <th className="px-4 py-3 bg-white">Description</th>
-                          <th className="px-4 py-3 bg-white">Date</th>
+                          <th className="px-4 py-3 font-semibold">SOURCE</th>
+                          <th className="px-4 py-3 font-semibold">TASK ID</th>
+                          <th className="px-4 py-3 font-semibold">DESCRIPTION</th>
+                          <th className="px-4 py-3 font-semibold">DATE</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -921,17 +980,25 @@ export default function SettingsPage() {
                             <td className="px-4 py-3 text-center">
                               <input 
                                 type="checkbox" 
-                                className="w-4 h-4 text-purple-600 rounded border-gray-300"
-                                checked={selectedTasks.has(task.taskId)}
+                                className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                                checked={selectedTasks.has(task.id)}
                                 onChange={(e) => {
                                   const newSet = new Set(selectedTasks);
-                                  if (e.target.checked) newSet.add(task.taskId);
-                                  else newSet.delete(task.taskId);
+                                  if (e.target.checked) {
+                                    newSet.add(task.id);
+                                  } else {
+                                    newSet.delete(task.id);
+                                  }
                                   setSelectedTasks(newSet);
                                 }}
                               />
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-700 font-medium">{task.taskId}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-medium">
+                              <span className={`px-2 py-1 rounded text-xs ${task.sheetName === "Checklist" ? "bg-blue-50 text-blue-700" : "bg-orange-50 text-orange-700"}`}>
+                                {task.sheetName}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-medium">{task.taskId || "—"}</td>
                             <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-[200px] md:max-w-xs">{task.description}</td>
                             <td className="px-4 py-3 text-sm text-gray-500">{task.date}</td>
                           </tr>

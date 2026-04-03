@@ -347,6 +347,15 @@ function DelegationDataPage() {
           textColor: "text-gray-800",
         };
 
+      const leaveValue = delegationItem["col21"]; // Column V (Leave)
+      if (leaveValue && String(leaveValue).toLowerCase().includes("leave")) {
+        return {
+          status: "Leave",
+          color: "bg-red-100",
+          textColor: "text-red-800",
+        };
+      }
+
       const actualValue = delegationItem["col11"]; // Column L (Actual)
       const delayValue = delegationItem["col12"]; // Column M (Delay)
 
@@ -771,7 +780,7 @@ function DelegationDataPage() {
         };
 
         // Map all columns including timestamp (column A)
-        for (let i = 0; i < 21; i++) {
+        for (let i = 0; i < 22; i++) {
           if (i === 0 || i === 6 || i === 10 || i === 11) {
             // Column A (0), G (6), K (10), L (11) are dates
             rowData[`col${i}`] = rowValues[i]
@@ -799,21 +808,25 @@ function DelegationDataPage() {
         // Always add to source data for matching in history
         allSourceDataForMatching.push(rowData);
 
-        // ✅ NEW: Filter out "Done" tasks OR tasks with an "Actual" value from pending view
+        // ✅ Process "Leave" status
+        const leaveValue = rowData["col21"]; // Column V (Leave)
+        const isLeave = leaveValue && String(leaveValue).toLowerCase().includes("leave");
+
+        // ✅ Filter out "Done" tasks OR tasks with an "Actual" value from pending view
         const taskStatus = rowData["col13"]; // Column N (Status)
         const actualValue = rowData["col11"]; // Column L (Actual)
 
         const isCompleted = (taskStatus && taskStatus.toString().trim().toLowerCase() === "done") ||
           (actualValue && actualValue.toString().trim() !== "");
 
-        if (isCompleted) {
-          // If it's completed, create a history-compatible version
+        if (isCompleted || isLeave) {
+          // If it's completed or on leave, create a history-compatible version
           const historyVersion = {
             ...rowData,
             _isFromMainSheet: true,
-            col0: rowData.col11 || rowData.col0, // Use Actual date as timestamp for history display if available
+            col0: isLeave ? rowData.col6 : (rowData.col11 || rowData.col0), // Show Task Start Date (col6) for leave, otherwise Actual/Timestamp
             col1: rowData.col1, // Task ID
-            col2: taskStatus === "Done" ? "Done" : "Submitted", // Status
+            col2: isLeave ? "" : (taskStatus === "Done" ? "Done" : "Submitted"), // Status
             col3: rowData.col10 || "", // Next target / New Deadline
             col4: "", // Remarks (History remarks are separate)
             col5: "", // Image
@@ -1270,7 +1283,9 @@ function DelegationDataPage() {
       for (let i = 0; i < colCount; i++) {
         if (!isHistory && (i === 10 || i === 13)) {
           rowData[i] = ""; // Planned Date and Status are formulas, protect them
-        } else if (i === 0 || i === 3 || i === 6 || (!isHistory && i === 11)) {
+        } else if (isHistory && i === 6) {
+          rowData[i] = ""; // Condition Date is formula, protect it
+        } else if (i === 0 || i === 3 || (!isHistory && i === 6) || (!isHistory && i === 11)) {
           rowData[i] = ensureDateOnly(item[`col${i}`]);
         } else if (i === (isHistory ? 8 : 5)) {
           rowData[i] = tempDescription[id] !== undefined ? tempDescription[id] : (currentDescription || "");
@@ -1342,7 +1357,9 @@ function DelegationDataPage() {
       const rowData = [];
       const colCount = 16;
       for (let i = 0; i < colCount; i++) {
-        if (i === 0 || i === 3 || i === 6) {
+        if (i === 6) {
+          rowData[i] = ""; // Condition Date is formula, protect it
+        } else if (i === 0 || i === 3) {
           rowData[i] = ensureDateOnly(historyItem[`col${i}`]);
         } else if (i === 4) {
           rowData[i] = tempRemarks[id] !== undefined ? tempRemarks[id] : (currentRemarks || "");
