@@ -125,6 +125,147 @@ const getSubmissionStatus = (actualDate, delayColumn, leaveColumn) => {
   }
 }
 
+const MobileTaskCard = memo(({
+  account,
+  isSelected,
+  additionalData,
+  remarksData,
+  onCheckboxClick,
+  onAdditionalDataChange,
+  onRemarksChange,
+  onImageUpload,
+  isEditingDesc,
+  tempDesc,
+  onToggleEditDesc,
+  onTempDescChange,
+  onSaveDesc
+}) => {
+  const isLeave = isLeaveStatus(account["col16"]);
+  const taskStatus = isLeave ? "Leave" : getTaskStatus(account["col10"], account["col15"], account["col6"], account["col4"]);
+  const isDisabled = taskStatus === "Admin Done" || taskStatus === "Done" || taskStatus === "Leave";
+  const category = getTaskCategory(account["col6"]);
+
+  return (
+    <div className={`p-4 border-b border-gray-100 ${isSelected ? "bg-purple-50" : taskStatus === "Overdue" ? "bg-red-50/30" : "bg-white"} ${isDisabled ? "opacity-90" : ""}`}>
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            className="h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            checked={isSelected}
+            onChange={(e) => onCheckboxClick(e, account._id)}
+            disabled={isDisabled}
+          />
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Task ID</span>
+            <span className="text-sm font-bold text-gray-900">{account["col1"] || "—"}</span>
+          </div>
+        </div>
+        <div className="flex flex-col items-end">
+          {category && !isDisabled && (
+            <span className={`px-2 py-0.5 text-[10px] font-black tracking-wider text-white rounded shadow-sm mb-1 ${
+              category === 'OVERDUE' ? 'bg-red-600' : category === 'TODAY' ? 'bg-orange-500' : 'bg-blue-600'
+            }`}>
+              {category}
+            </span>
+          )}
+          <span className={`inline-flex px-2 py-1 text-[10px] font-semibold rounded-full ${getStatusColor(taskStatus)}`}>
+            {taskStatus}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Assigned To</span>
+          <span className="text-sm font-medium text-gray-800">{account["col4"] || "—"}</span>
+        </div>
+        <div>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Frequency</span>
+          <span className="text-sm font-medium text-gray-800">{account["col7"] || "—"}</span>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Task Description</span>
+        {isEditingDesc ? (
+          <div className="flex flex-col gap-2">
+            <textarea 
+              value={tempDesc !== undefined ? tempDesc : (account["col5"] || "")}
+              onChange={(e) => onTempDescChange(account._id, e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full font-medium text-gray-900 focus:ring-2 focus:ring-purple-500"
+              rows={2}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => onToggleEditDesc(account._id, false)} className="px-3 py-1 text-xs text-gray-600 border border-gray-200 rounded">Cancel</button>
+              <button onClick={() => onSaveDesc(account._id, tempDesc !== undefined ? tempDesc : account["col5"], account)} className="px-3 py-1 text-xs bg-green-600 text-white rounded">Save</button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-start justify-between group">
+            <p className="text-sm text-gray-700 leading-relaxed italic">{account["col5"] || "No description provided."}</p>
+            <button onClick={() => onToggleEditDesc(account._id, true)} className="p-1 text-blue-500 hover:bg-blue-50 rounded ml-2">
+              <Edit size={14}/>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1">Status Update</label>
+          <select
+            disabled={!isSelected || isDisabled}
+            value={additionalData || ""}
+            onChange={(e) => onAdditionalDataChange(account._id, e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm font-medium text-black disabled:bg-gray-100"
+          >
+            <option value="">Select Status...</option>
+            <option value="Yes">Yes</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+        
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1">Remarks</label>
+          <input
+            type="text"
+            placeholder="Add a remark..."
+            disabled={!isSelected || !additionalData || isDisabled}
+            value={remarksData || ""}
+            onChange={(e) => onRemarksChange(account._id, e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm font-medium text-gray-900 placeholder-gray-400 disabled:bg-gray-100"
+          />
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          <label className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">Attachment</label>
+          {account.image ? (
+            <div className="flex items-center gap-2">
+              <img
+                src={typeof account.image === "string" ? account.image : URL.createObjectURL(account.image)}
+                alt="Receipt"
+                className="h-8 w-8 object-cover rounded border border-gray-200"
+              />
+              <button className="text-[10px] text-purple-600 font-bold" onClick={() => window.open(account.image, "_blank")}>VIEW</button>
+            </div>
+          ) : (
+            <label className={`flex items-center gap-1 text-[10px] font-bold ${account["col9"]?.toUpperCase() === "YES" ? "text-red-600" : "text-purple-600"} ${isDisabled || !isSelected ? "opacity-50" : "cursor-pointer"}`}>
+              <Upload size={12} />
+              {account["col9"]?.toUpperCase() === "YES" ? "REQUIRED*" : "UPLOAD"}
+              <input type="file" className="hidden" accept="image/*" onChange={(e) => onImageUpload(account._id, e)} disabled={!isSelected || isDisabled} />
+            </label>
+          )}
+        </div>
+      </div>
+      
+      <div className="mt-3 flex items-center justify-between text-[10px] text-gray-400">
+        <span>Scheduled: {account["col6"] || "—"}</span>
+      </div>
+    </div>
+  );
+});
+
 const MemoizedTaskRow = memo(({
   account,
   isSelected,
@@ -151,10 +292,10 @@ const MemoizedTaskRow = memo(({
     <tr
       className={`group ${isSelected ? "bg-purple-50" : ""} ${isNotToday ? "bg-white border-l-4 border-gray-300" : "hover:bg-gray-50"} ${isDisabled ? "opacity-90 cursor-not-allowed" : ""}`}
     >
-      <td className={`px-3 py-4 w-12 sticky left-0 z-40 relative ${isSelected ? "bg-purple-50" : isNotToday ? "bg-white" : "bg-white group-hover:bg-gray-50"}`}>
+      <td className={`px-2 py-4 w-[45px] sm:w-[50px] sticky left-0 z-40 relative shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? "bg-purple-50" : isNotToday ? "bg-white" : "bg-white group-hover:bg-gray-50"}`}>
         {category && !isDisabled && (
-          <div className="absolute top-1 left-2 z-[60] pointer-events-none">
-            <span className={`px-1.5 py-0.5 text-[8px] font-black tracking-wider text-white rounded shadow-sm flex items-center justify-center whitespace-nowrap ${category === 'OVERDUE' ? 'bg-red-600' :
+          <div className="absolute top-0.5 left-0.5 z-[60] pointer-events-none">
+            <span className={`px-1 py-0.5 text-[7px] sm:text-[8px] font-black tracking-wider text-white rounded shadow-sm flex items-center justify-center whitespace-nowrap ${category === 'OVERDUE' ? 'bg-red-600' :
               category === 'TODAY' ? 'bg-orange-500' :
                 'bg-blue-600'
               }`}>
@@ -170,8 +311,8 @@ const MemoizedTaskRow = memo(({
           disabled={isDisabled}
         />
       </td>
-      <td className={`px-3 py-4 w-20 sticky left-12 z-30 ${isSelected ? "bg-purple-50" : isNotToday ? "bg-white" : "bg-white group-hover:bg-gray-50"}`}>
-        <div className={`text-sm break-words font-medium text-gray-900`}>
+      <td className={`px-2 py-4 w-[65px] sm:w-[80px] sticky left-[45px] sm:left-[50px] z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? "bg-purple-50" : isNotToday ? "bg-white" : "bg-white group-hover:bg-gray-50"}`}>
+        <div className={`text-xs sm:text-sm break-words font-medium text-gray-900`}>
           {account["col1"] || "—"}
         </div>
       </td>
@@ -1638,7 +1779,7 @@ function AccountDataPage() {
                     value={nameSearchTerm}
                     onChange={(e) => setNameSearchTerm(e.target.value)}
                     onClick={() => setIsDropdownOpen(true)}
-                    className="pl-8 pr-4 py-2 border border-gray-200 rounded-md text-sm w-[200px] focus:outline-none focus:ring-1 focus:ring-purple-500"
+                    className="pl-8 pr-4 py-2 border border-gray-200 rounded-md text-sm w-full sm:w-[200px] focus:outline-none focus:ring-1 focus:ring-purple-500"
                   />
                 </div>
 
@@ -1691,15 +1832,15 @@ function AccountDataPage() {
           )}
 
           {/* Date Range Filter */}
-          <div className="flex flex-col">
+          <div className="flex flex-col w-full sm:w-auto">
             <label className="text-sm font-medium text-purple-700 mb-1">
               Filter by Date Range:
             </label>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <div className="flex items-center w-full sm:w-auto">
                 <label
                   htmlFor="start-date"
-                  className="text-sm text-gray-700 mr-1"
+                  className="text-sm text-gray-700 mr-1 min-w-[35px]"
                 >
                   From
                 </label>
@@ -1708,13 +1849,13 @@ function AccountDataPage() {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-md p-1"
+                  className="text-sm border border-gray-200 rounded-md p-1 w-full sm:w-auto"
                 />
               </div>
-              <div className="flex items-center">
+              <div className="flex items-center w-full sm:w-auto">
                 <label
                   htmlFor="end-date"
-                  className="text-sm text-gray-700 mr-1"
+                  className="text-sm text-gray-700 mr-1 min-w-[35px]"
                 >
                   To
                 </label>
@@ -1723,7 +1864,7 @@ function AccountDataPage() {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="text-sm border border-gray-200 rounded-md p-1"
+                  className="text-sm border border-gray-200 rounded-md p-1 w-full sm:w-auto"
                 />
               </div>
             </div>
@@ -1874,119 +2015,67 @@ function AccountDataPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <h1 className="text-2xl font-bold tracking-tight text-purple-700">
+      <div className="space-y-4 pb-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center justify-between">
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-purple-700 text-center lg:text-left">
             {showHistory
               ? CONFIG.PAGE_CONFIG.historyTitle
               : CONFIG.PAGE_CONFIG.title}
           </h1>
 
-          {/* Search Input */}
-          <div className="relative w-full sm:w-80">
-            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <Search
-                className="text-gray-400 mt-0.5"
-                size={18}
+          <div className="flex flex-col md:flex-row items-center gap-3 w-full lg:w-auto">
+            {/* Search Input */}
+            <div className="relative w-full md:w-64 lg:w-80 order-2 md:order-1">
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <Search
+                  className="text-gray-400 mt-0.5"
+                  size={16}
+                />
+              </div>
+              <input
+                type="text"
+                placeholder={showHistory ? "Search history..." : "Search tasks..."}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 pr-4 py-2 border border-purple-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-full text-sm bg-white"
               />
             </div>
-            <input
-              type="text"
-              placeholder={showHistory ? "Search history..." : "Search tasks..."}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-purple-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 w-full text-sm bg-white"
-            />
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row sm:flex-wrap items-center justify-center gap-3 w-full sm:w-auto">
-            {/* Filters Button */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center justify-center py-2 px-4 bg-white text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-all duration-200 shadow-sm text-sm font-medium w-full sm:min-w-[100px] sm:w-auto"
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
-            </button>
-
-            {/* History Toggle Button */}
-            <button
-              onClick={toggleHistory}
-              className="flex items-center justify-center py-2 px-4 bg-white text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-all duration-200 shadow-sm text-sm font-medium w-full sm:min-w-[140px] sm:w-auto"
-            >
-              {showHistory ? (
-                <>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Tasks
-                </>
-              ) : (
-                <>
-                  <History className="h-4 w-4 mr-2" />
-                  History
-                </>
-              )}
-            </button>
-
-            {/* Admin Mark Done (History View) */}
-            {showHistory && userRole === "admin" && selectedHistoryItems.length > 0 && (
+            {/* Action Buttons Group */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full md:w-auto order-1 md:order-2">
+              {/* Filters Button */}
               <button
-                onClick={handleMarkMultipleDone}
-                disabled={markingAsDone}
-                className="flex items-center justify-center py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed w-full sm:min-w-[140px] sm:w-auto"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center justify-center py-2 px-3 bg-white text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-all duration-200 shadow-sm text-sm font-medium"
               >
-                {markingAsDone ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Processing
-                  </span>
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
+              </button>
+
+              {/* History Toggle Button */}
+              <button
+                onClick={toggleHistory}
+                className="flex items-center justify-center py-2 px-3 bg-white text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 transition-all duration-200 shadow-sm text-sm font-medium"
+              >
+                {showHistory ? (
+                  <>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back
+                  </>
                 ) : (
-                  "Mark Admin Done"
+                  <>
+                    <History className="h-4 w-4 mr-2" />
+                    History
+                  </>
                 )}
               </button>
-            )}
 
-            {/* Re-assign Tasks (History View) */}
-            {showHistory && userRole === "admin" && selectedHistoryItems.length > 0 && (
-              <button
-                onClick={handleReassignTasks}
-                disabled={isReassigning}
-                className="flex items-center justify-center py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 shadow-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed w-full sm:min-w-[140px] sm:w-auto"
-              >
-                {isReassigning ? (
-                  <span className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Processing
-                  </span>
-                ) : (
-                  "Re-assign Tasks"
-                )}
-              </button>
-            )}
-
-            {/* Task Actions (Tasks View) */}
-            {!showHistory && (
-              <>
-                {/* Leave Button */}
-                {/* <button
-                  onClick={handleLeave}
-                  disabled={isSubmitting}
-                  className="flex items-center justify-center py-2 px-4 bg-red-100 text-red-700 border border-red-200 rounded-lg hover:bg-red-200 transition-all duration-200 shadow-sm text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed min-w-[100px]"
-                >
-                  Leave
-                </button> */}
-
-                {/* Submit Button */}
+              {/* Task Actions (Tasks View) */}
+              {!showHistory && (
                 <button
                   onClick={handleSubmit}
                   disabled={selectedItemsCount === 0 || isSubmitting}
-                  className="flex items-center justify-center py-2 px-6 gradient-bg text-white rounded-lg hover:shadow-lg transition-all duration-200 shadow-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95 w-full sm:min-w-[140px] sm:w-auto"
+                  className="col-span-2 sm:col-auto flex items-center justify-center py-2 px-4 gradient-bg text-white rounded-lg hover:shadow-lg transition-all duration-200 shadow-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
                 >
                   {isSubmitting ? (
                     <span className="flex items-center">
@@ -2000,26 +2089,29 @@ function AccountDataPage() {
                     `Submit (${selectedItemsCount})`
                   )}
                 </button>
-              </>
-            )}
-          </div>
+              )}
 
-          {/* Admin Mark Done Button - Show in both mobile and desktop when conditions are met */}
-          {/* {showHistory &&
-            userRole === "admin" &&
-            selectedHistoryItems.length > 0 && (
-              <div className="sm:hidden w-full mt-2">
-                <button
-                  onClick={handleMarkMultipleDone}
-                  disabled={markingAsDone}
-                  className="w-full gradient-bg py-3 px-4 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  {markingAsDone
-                    ? "Processing..."
-                    : `Mark ${selectedHistoryItems.length} Items as Admin Done`}
-                </button>
-              </div>
-            )} */}
+              {/* Admin Actions (History View) */}
+              {showHistory && userRole === "admin" && selectedHistoryItems.length > 0 && (
+                <>
+                  <button
+                    onClick={handleMarkMultipleDone}
+                    disabled={markingAsDone}
+                    className="flex items-center justify-center py-2 px-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Done
+                  </button>
+                  <button
+                    onClick={handleReassignTasks}
+                    disabled={isReassigning}
+                    className="flex items-center justify-center py-2 px-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 shadow-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Re-assign
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {successMessage && (
@@ -2071,671 +2163,172 @@ function AccountDataPage() {
               </button>
             </div>
           ) : showHistory ? (
-            <>
-              {/* Confirmation Modal */}
-              <ConfirmationModal
-                isOpen={confirmationModal.isOpen}
-                itemCount={confirmationModal.itemCount}
-                onConfirm={confirmMarkDone}
-                onCancel={() =>
-                  setConfirmationModal({ isOpen: false, itemCount: 0 })
-                }
-              />
-
-              {/* Re-assign Confirmation Modal */}
-              {reassignModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                  <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-                    <div className="flex items-center justify-center mb-4">
-                      <div className="bg-red-100 text-red-600 rounded-full p-3 mr-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" />
-                        </svg>
-                      </div>
-                      <h2 className="text-xl font-bold text-gray-800">Re-assign Tasks</h2>
-                    </div>
-
-                    <p className="text-gray-600 text-center mb-6">
-                      Are you sure you want to re-assign {reassignModal.itemCount} {reassignModal.itemCount === 1 ? "item" : "items"}? This will clear the Actual date and Admin Done status.
-                    </p>
-
-                    <div className="flex justify-center space-x-4">
-                      <button
-                        onClick={() => setReassignModal({ isOpen: false, itemCount: 0 })}
-                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={confirmReassign}
-                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                      >
-                        Confirm
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
+            <div className="bg-white rounded-xl shadow-lg border border-purple-100 overflow-hidden">
               {/* Task Statistics */}
-              <div className="p-4 border-b border-purple-100 bg-blue-50">
-                <div className="flex flex-col">
-                  <h3 className="text-sm font-medium text-blue-700 mb-2">
-                    Task Completion Statistics:
-                  </h3>
-                  <div className="flex flex-wrap gap-4">
-                    <div className="px-3 py-2 bg-white rounded-md shadow-sm">
-                      <span className="text-xs text-gray-500">
-                        Total Completed
-                      </span>
-                      <div className="text-lg font-semibold text-blue-600">
-                        {getTaskStatistics().totalCompleted}
-                      </div>
+              <div className="p-4 bg-blue-50/50 border-b border-purple-100">
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-[10px] font-black text-blue-800 uppercase tracking-widest pl-1">Historical Statistics</h3>
+                  <div className="flex flex-wrap gap-2 sm:gap-4">
+                    <div className="px-4 py-3 bg-white rounded-xl shadow-sm border border-blue-100 flex-1 min-w-[140px]">
+                      <span className="text-[9px] uppercase tracking-wider text-gray-400 font-black">Completed</span>
+                      <div className="text-xl font-black text-blue-700">{getTaskStatistics().totalCompleted}</div>
                     </div>
-                    {(selectedMembers.length > 0 ||
-                      startDate ||
-                      endDate ||
-                      searchTerm ||
-                      selectedStatus) && (
-                        <div className="px-3 py-2 bg-white rounded-md shadow-sm">
-                          <span className="text-xs text-gray-500">
-                            Filtered Results
-                          </span>
-                          <div className="text-lg font-semibold text-blue-600">
-                            {getTaskStatistics().filteredTotal}
-                          </div>
-                        </div>
-                      )}
                     {selectedMembers.map((member) => (
-                      <div
-                        key={member}
-                        className="px-3 py-2 bg-white rounded-md shadow-sm"
-                      >
-                        <span className="text-xs text-gray-500">{member}</span>
-                        <div className="text-lg font-semibold text-indigo-600">
-                          {getTaskStatistics().memberStats[member]}
-                        </div>
+                      <div key={member} className="px-4 py-3 bg-white rounded-xl shadow-sm border border-blue-100 flex-1 min-w-[140px]">
+                        <span className="text-[9px] uppercase tracking-wider text-indigo-400 font-black">{member}</span>
+                        <div className="text-xl font-black text-indigo-700">{getTaskStatistics().memberStats[member] || 0}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-              {/* History Table */}
-              <div className="max-h-[75vh] overflow-auto w-full">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 sticky top-0 z-10">
-                    <tr>
-                      {/* Add this column header after the Admin Done column (if admin) or at the end */}
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
-                        Edit
-                      </th>
-                      {/* Submission Status Column Header */}
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 min-w-[120px]">
-                        Submission Status
-                      </th>
-                      {/* Admin Select Column Header */}
-                      {userRole === "admin" && (
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                          <div className="flex flex-col items-center">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                              checked={
-                                // Only consider items that are NOT "Admin Done" for select all
-                                filteredHistoryData.filter(
-                                  (item) =>
-                                    isEmpty(item["col15"]) ||
-                                    item["col15"].toString().trim() !==
-                                    "Admin Done"
-                                ).length > 0 &&
-                                selectedHistoryItems.length ===
-                                filteredHistoryData.filter(
-                                  (item) =>
-                                    isEmpty(item["col15"]) ||
-                                    item["col15"].toString().trim() !==
-                                    "Admin Done"
-                                ).length
-                              }
-                              onChange={(e) => {
-                                // Only select items that are NOT "Admin Done"
-                                const unprocessedItems =
-                                  filteredHistoryData.filter(
-                                    (item) =>
-                                      isEmpty(item["col15"]) ||
-                                      item["col15"].toString().trim() !==
-                                      "Admin Done"
-                                  );
-                                if (e.target.checked) {
-                                  setSelectedHistoryItems(unprocessedItems);
-                                } else {
-                                  setSelectedHistoryItems([]);
-                                }
-                              }}
-                            />
-                            <span className="text-xs text-gray-400 mt-1">
-                              Admin
-                            </span>
-                          </div>
-                        </th>
-                      )}
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                        Task ID
-                      </th>
-
-
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                        Name
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
-                        Task Description
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-blue-50 min-w-[80px]">
-                        Status
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-purple-50 min-w-[150px]">
-                        Remarks
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-yellow-50 min-w-[140px]">
-                        Task Start Date & Time
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
-                        Freq
-                      </th>
-
-
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-green-50 min-w-[140px]">
-                        Actual Date & Time
-                      </th>
-
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                        Attachment
-                      </th>
-                      {/* Admin Done Date Column */}
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 min-w-[140px]">
-                        Admin Done
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {displayedHistoryData.length > 0 ? (
-                      <>
-                        {displayedHistoryData.map((history) => {
-                          const submissionStatus = getSubmissionStatus(
-                            history["col10"],
-                            history["col11"],
-                            history["col16"]
-                          );
-                          return (
-                            <tr key={history._id} className="hover:bg-gray-50">
-                              {/* Add this cell at the end of each row, after the Admin Done column (if admin) */}
-                              <td className="px-3 py-4 min-w-[80px]">
-                                {editingRemarks[history._id] ? (
-                                  <div className="flex space-x-2">
-                                    <button
-                                      onClick={() =>
-                                        handleEditRemarks(
-                                          history._id,
-                                          history["col13"],
-                                          history
-                                        )
-                                      }
-                                      className="text-green-600 hover:text-green-800"
-                                      title="Save"
-                                    >
-                                      <CheckCircle2 size={20} />
-                                    </button>
-                                    <button
-                                      onClick={() =>
-                                        setEditingRemarks((prev) => ({
-                                          ...prev,
-                                          [history._id]: false,
-                                        }))
-                                      }
-                                      className="text-red-600 hover:text-red-800"
-                                      title="Cancel"
-                                    >
-                                      <X size={20} />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() =>
-                                      setEditingRemarks((prev) => ({
-                                        ...prev,
-                                        [history._id]: true,
-                                      }))
-                                    }
-                                    className="text-blue-600 hover:text-blue-800"
-                                    title="Edit Remarks"
-                                  >
-                                    <Edit size={20} />
-                                  </button>
-                                )}
-                              </td>
-                              {/* Submission Status Column */}
-                              <td className="px-3 py-4 bg-blue-50 min-w-[120px]">
-                                <span
-                                  className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${submissionStatus.color === "green"
-                                    ? "bg-green-100 text-green-800"
-                                    : submissionStatus.color === "red"
-                                      ? "bg-red-100 text-red-800"
-                                      : "bg-gray-100 text-gray-800"
-                                    }`}
-                                >
-                                  {submissionStatus.status}
-                                </span>
-                              </td>
-                              {/* Admin Select Checkbox */}
-                              {userRole === "admin" && (
-                                <td className="px-3 py-4 w-12">
-                                  {!isEmpty(history["col15"]) &&
-                                    history["col15"].toString().trim() ===
-                                    "Admin Done" ? (
-                                    <div className="flex flex-col items-center">
-                                      <input
-                                        type="checkbox"
-                                        className="h-4 w-4 rounded border-gray-300 text-green-600 bg-green-100"
-                                        checked={true}
-                                        disabled={true}
-                                        title="Admin Done"
-                                      />
-                                      <span className="text-xs text-green-600 mt-1 text-center break-words">
-                                        Done
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-col items-center">
-                                      <input
-                                        type="checkbox"
-                                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                                        checked={selectedHistoryItems.some(
-                                          (item) => item._id === history._id
-                                        )}
-                                        onChange={() => {
-                                          setSelectedHistoryItems((prev) =>
-                                            prev.some(
-                                              (item) => item._id === history._id
-                                            )
-                                              ? prev.filter(
-                                                (item) =>
-                                                  item._id !== history._id
-                                              )
-                                              : [...prev, history]
-                                          );
-                                        }}
-                                      />
-                                      <span className="text-xs text-gray-400 mt-1 text-center break-words">
-                                        Mark Done
-                                      </span>
-                                    </div>
-                                  )}
-                                </td>
-                              )}
-                              <td className="px-3 py-4 min-w-[100px]">
-                                <div className="text-sm font-medium text-gray-900 break-words">
-                                  {history["col1"] || "—"}
-                                </div>
-                              </td>
-
-
-                              <td className="px-3 py-4 min-w-[100px]">
-                                <div className="text-sm text-gray-900 break-words">
-                                  {history["col4"] || "—"}
-                                </div>
-                              </td>
-                              <td className="px-3 py-4 min-w-[200px]">
-                                {editingDescription[history._id] ? (
-                                  <div className="flex flex-col gap-1 w-full">
-                                    <textarea 
-                                      value={tempDescription[history._id] !== undefined ? tempDescription[history._id] : (history["col5"] || "")}
-                                      onChange={(e) => setTempDescription(prev => ({ ...prev, [history._id]: e.target.value }))}
-                                      className="border border-gray-300 rounded-md px-2 py-1 text-sm w-full font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                      rows={2}
-                                      autoFocus
-                                    />
-                                    <div className="flex justify-end space-x-2 mt-1">
-                                      <button onClick={() => handleEditDescription(history._id, history["col5"], history)} className="text-green-600 hover:text-green-800" title="Save"><CheckCircle2 size={16}/></button>
-                                      <button onClick={() => setEditingDescription(prev => ({ ...prev, [history._id]: false }))} className="text-red-600 hover:text-red-800" title="Cancel"><X size={16}/></button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="group/edit flex items-start justify-between min-w-[150px]">
-                                    <div className="text-sm text-gray-900 break-words" title={history["col5"]}>
-                                      {history["col5"] || "—"}
-                                    </div>
-                                    <button 
-                                      onClick={() => setEditingDescription(prev => ({ ...prev, [history._id]: true }))} 
-                                      className="text-blue-500 opacity-0 group-hover/edit:opacity-100 transition-opacity p-1 hover:bg-blue-50 rounded ml-2 flex-shrink-0"
-                                      title="Edit Task Description"
-                                    >
-                                      <Edit size={14}/>
-                                    </button>
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-3 py-4 bg-blue-50 min-w-[80px]">
-                                <span
-                                  className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full break-words ${history["col12"] === "Yes"
-                                    ? "bg-green-100 text-green-800"
-                                    : history["col12"] === "No"
-                                      ? "bg-red-100 text-red-800"
-                                      : "bg-gray-100 text-gray-800"
-                                    }`}
-                                >
-                                  {history["col12"] || "—"}
-                                </span>
-                              </td>
-                              <td className="px-3 py-4 bg-purple-50 min-w-[150px]">
-                                {editingRemarks[history._id] ? (
-                                  <input
-                                    type="text"
-                                    defaultValue={history["col13"] || ""}
-                                    onChange={(e) =>
-                                      setTempRemarks((prev) => ({
-                                        ...prev,
-                                        [history._id]: e.target.value,
-                                      }))
-                                    }
-                                    className="border rounded-md px-2 py-1 w-full text-sm"
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <span className="text-sm text-gray-900 break-words">
-                                    {history["col13"] || "—"}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-3 py-4 bg-yellow-50 min-w-[140px]">
-                                <div className="text-sm text-gray-900 break-words">
-                                  {history["col6"] ? (
-                                    <div>
-                                      <div className="font-medium break-words">
-                                        {history["col6"].includes(" ")
-                                          ? history["col6"].split(" ")[0]
-                                          : history["col6"]}
-                                      </div>
-                                      {history["col6"].includes(" ") && (
-                                        <div className="text-xs text-gray-500 break-words">
-                                          {history["col6"].split(" ")[1]}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    "—"
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-3 py-4 min-w-[80px]">
-                                <div className="text-sm text-gray-900 break-words">
-                                  {history["col7"] || "—"}
-                                </div>
-                              </td>
-
-
-                              <td className="px-3 py-4 bg-green-50 min-w-[140px]">
-                                <div className="text-sm text-gray-900 break-words">
-                                  {history["col10"] ? (
-                                    <div>
-                                      <div className="font-medium break-words">
-                                        {history["col10"].includes(" ")
-                                          ? history["col10"].split(" ")[0]
-                                          : history["col10"]}
-                                      </div>
-                                      {history["col10"].includes(" ") && (
-                                        <div className="text-xs text-gray-500 break-words">
-                                          {history["col10"].split(" ")[1]}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    "—"
-                                  )}
-                                </div>
-                              </td>
-
-                              <td className="px-3 py-4 min-w-[100px]">
-                                {history["col14"] ? (
-                                  <a
-                                    href={history["col14"]}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:text-blue-800 underline flex items-center break-words"
-                                  >
-                                    <img
-                                      src={
-                                        history["col14"] ||
-                                        "/placeholder.svg?height=32&width=32"
-                                      }
-                                      alt="Attachment"
-                                      className="h-8 w-8 object-cover rounded-md mr-2 flex-shrink-0"
-                                    />
-                                    <span className="break-words">View</span>
-                                  </a>
-                                ) : (
-                                  <span className="text-gray-400">
-                                    No attachment
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* Admin Done Column */}
-                              <td className="px-3 py-4 bg-gray-50 min-w-[140px]">
-                                {!isEmpty(history["col15"]) &&
-                                  history["col15"].toString().trim() ===
-                                  "Admin Done" ? (
-                                  <div className="text-sm text-gray-900 break-words">
-                                    <div className="flex items-center">
-                                      <div className="h-4 w-4 rounded border-gray-300 text-green-600 bg-green-100 mr-2 flex items-center justify-center">
-                                        <span className="text-xs text-green-600">
-                                          ✓
-                                        </span>
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <div className="font-medium text-green-700 text-sm">
-                                          Done
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center text-gray-400 text-sm">
-                                    <div className="h-4 w-4 rounded border-gray-300 mr-2"></div>
-                                    <span>Pending</span>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-
-                        {/* Load More Button for History */}
-                        {historyDisplayLimit < filteredHistoryData.length && (
-                          <tr>
-                            <td
-                              colSpan={userRole === "admin" ? 16 : 15}
-                              className="px-6 py-4 text-center"
-                            >
-                              <button
-                                onClick={handleLoadMoreHistory}
-                                disabled={isLoadingMoreHistory}
-                                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {isLoadingMoreHistory ? (
-                                  <div className="flex items-center justify-center">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                                    Loading...
-                                  </div>
-                                ) : (
-                                  `Load More (${filteredHistoryData.length -
-                                  historyDisplayLimit
-                                  } remaining)`
-                                )}
-                              </button>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    ) : (
-                      <tr>
-                        <td
-                          colSpan={userRole === "admin" ? 16 : 15}
-                          className="px-6 py-4 text-center text-gray-500"
-                        >
-                          {searchTerm ||
-                            selectedMembers.length > 0 ||
-                            startDate ||
-                            endDate ||
-                            selectedStatus
-                            ? "No historical records matching your filters"
-                            : "No completed records found"}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Desktop Table View */}
-              <div className="max-h-[75vh] overflow-auto w-full">
+              <div className="max-h-[55vh] overflow-auto w-full">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50 sticky top-0 z-40">
                     <tr>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12 sticky left-0 z-50 bg-gray-50">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                          checked={
-                            // Only consider enabled items for select all
-                            filteredAccountData.filter((item) => {
-                              const taskStatus = getTaskStatus(
-                                item["col10"],
-                                item["col15"],
-                                item["col6"]
-                              );
-                              return (
-                                taskStatus !== "Admin Done" &&
-                                taskStatus !== "Done" &&
-                                taskStatus !== "Disabled"
-                              );
-                            }).length > 0 &&
-                            selectedItems.size ===
-                            filteredAccountData.filter((item) => {
-                              const taskStatus = getTaskStatus(
-                                item["col10"],
-                                item["col15"],
-                                item["col6"]
-                              );
-                              return (
-                                taskStatus !== "Admin Done" &&
-                                taskStatus !== "Done" &&
-                                taskStatus !== "Disabled"
-                              );
-                            }).length
-                          }
-                          onChange={handleSelectAllItems}
-                        />
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 sticky left-12 z-50 bg-gray-50">
-                        Task ID
-                      </th>
-                      {/* Status Column Header */}
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
-                        Status
-                      </th>
-
-
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                        Name
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px]">
-                        Status
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
-                        Remarks
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
-                        Task Description
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-yellow-50 min-w-[140px]">
-                        Task Start Date & Time
-                      </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]">
-                        Freq
-                      </th>
-
-
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                        Upload Image
-                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[80px]">Edit</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 min-w-[120px]">Sub Status</th>
+                      {userRole === "admin" && (
+                        <th className="px-4 py-3 text-left w-12 text-[10px] font-black text-gray-400 uppercase">Admin</th>
+                      )}
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[90px]">Task ID</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[110px]">Name</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[200px]">Description</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest bg-blue-50 min-w-[90px]">Status</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest bg-purple-50 min-w-[150px]">Remarks</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest bg-yellow-50 min-w-[140px]">Scheduled</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[80px]">Freq</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest bg-green-50 min-w-[140px]">Actual Date</th>
+                      <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[120px]">Attachment</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {displayedAccountData.map((account) => (
-                      <MemoizedTaskRow
-                        key={account._id}
-                        account={account}
-                        isSelected={selectedItems.has(account._id)}
-                        additionalData={additionalData[account._id]}
-                        remarksData={remarksData[account._id]}
-                        onCheckboxClick={handleCheckboxClick}
-                        onAdditionalDataChange={handleAdditionalDataChange}
-                        onRemarksChange={handleRemarksChange}
-                        onImageUpload={handleImageUpload}
-                        isEditingDesc={editingDescription[account._id]}
-                        tempDesc={tempDescription[account._id]}
-                        onToggleEditDesc={(id, val) => setEditingDescription(prev => ({ ...prev, [id]: val }))}
-                        onTempDescChange={(id, val) => setTempDescription(prev => ({ ...prev, [id]: val }))}
-                        onSaveDesc={(id, currentDesc, item) => handleEditDescription(id, currentDesc, item)}
-                      />
-                    ))}
-
-                    {/* Load More Button */}
-                    {displayLimit < filteredAccountData.length && (
-                      <tr>
-                        <td colSpan={14} className="px-6 py-4 text-center">
-                          <button
-                            onClick={handleLoadMore}
-                            disabled={isLoadingMore}
-                            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isLoadingMore ? (
-                              <div className="flex items-center justify-center">
-                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                                Loading...
-                              </div>
-                            ) : (
-                              `Load More (${filteredAccountData.length - displayLimit
-                              } remaining)`
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    )}
-
-                    {/* Empty state */}
-                    {filteredAccountData.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={14}
-                          className="px-6 py-4 text-center text-gray-500"
-                        >
-                          {searchTerm ||
-                            selectedMembers.length > 0 ||
-                            startDate ||
-                            endDate ||
-                            selectedStatus
-                            ? "No tasks matching your filters"
-                            : "No tasks found for today, tomorrow, or past due dates"}
-                        </td>
-                      </tr>
-                    )}
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {displayedHistoryData.map((history) => {
+                      const subStatus = getSubmissionStatus(history["col10"], history["col11"], history["col16"]);
+                      return (
+                        <tr key={history._id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-4">
+                            <button onClick={() => setEditingRemarks(prev => ({ ...prev, [history._id]: !prev[history._id] }))} className="p-1.5 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100"><Edit size={16} /></button>
+                          </td>
+                          <td className="px-4 py-4 bg-blue-50/20">
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-tighter ${subStatus.color === "green" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                              {subStatus.status}
+                            </span>
+                          </td>
+                          {userRole === "admin" && (
+                            <td className="px-4 py-4 text-center">
+                              <input type="checkbox" className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" checked={selectedHistoryItems.some(i => i._id === history._id)} onChange={() => setSelectedHistoryItems(prev => prev.some(i => i._id === history._id) ? prev.filter(i => i._id !== history._id) : [...prev, history])} />
+                            </td>
+                          )}
+                          <td className="px-4 py-4 text-xs font-bold text-gray-900">{history["col1"] || "—"}</td>
+                          <td className="px-4 py-4 text-xs text-gray-700">{history["col4"] || "—"}</td>
+                          <td className="px-4 py-4 text-xs text-gray-600 italic max-w-[200px] truncate" title={history["col5"]}>{history["col5"] || "—"}</td>
+                          <td className="px-4 py-4 bg-blue-50/20 text-center"><span className="text-[10px] font-black uppercase text-gray-600">{history["col12"] || "—"}</span></td>
+                          <td className="px-4 py-4 bg-purple-50/20 text-xs text-gray-800">{history["col13"] || "—"}</td>
+                          <td className="px-4 py-4 bg-yellow-50/20 text-xs text-gray-700">{history["col6"] || "—"}</td>
+                          <td className="px-4 py-4 text-[10px] font-black text-gray-400">{history["col7"] || "—"}</td>
+                          <td className="px-4 py-4 bg-green-50/20 text-xs text-green-700 font-bold">{history["col10"] || "—"}</td>
+                          <td className="px-4 py-4">
+                            {history["col14"] ? <a href={history["col14"]} target="_blank" className="text-purple-600 font-black text-[10px] uppercase hover:underline">View File</a> : <span className="text-gray-300 text-[9px] italic">No File</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+              {historyDisplayLimit < filteredHistoryData.length && (
+                <div className="p-4 flex justify-center bg-gray-50 border-t border-purple-100">
+                  <button onClick={handleLoadMoreHistory} className="px-6 py-2 bg-white border border-purple-200 text-purple-600 rounded-full text-xs font-black uppercase hover:bg-purple-50 shadow-sm">Load More History</button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col bg-white rounded-xl shadow-lg border border-purple-100 overflow-hidden">
+              {/* Desktop View */}
+              <div className="hidden lg:block">
+                <div className="max-h-[65vh] overflow-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50/80 sticky top-0 z-40 backdrop-blur-md">
+                      <tr>
+                        <th className="px-2 py-3 w-12 sticky left-0 z-50 bg-gray-50 border-r border-gray-100 shadow-xl">
+                          <input type="checkbox" className="h-5 w-5 rounded border-gray-300 text-purple-600 cursor-pointer" checked={filteredAccountData.filter(i => {const s = getTaskStatus(i["col10"], i["col15"], i["col6"]); return s !== "Admin Done" && s !== "Done" && s !== "Disabled";}).length > 0 && selectedItems.size === filteredAccountData.filter(i => {const s = getTaskStatus(i["col10"], i["col15"], i["col6"]); return s !== "Admin Done" && s !== "Done" && s !== "Disabled";}).length} onChange={handleSelectAllItems} />
+                        </th>
+                        <th className="px-2 py-3 w-16 sticky left-12 z-50 bg-gray-50 shadow-xl text-[10px] font-black text-gray-500 uppercase tracking-widest">ID</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[90px]">Status</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[120px]">Assigned</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[140px]">Submit Status</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[180px]">Remarks</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[200px]">Description</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest bg-yellow-50 min-w-[140px]">Scheduled</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[80px]">Freq</th>
+                        <th className="px-4 py-3 text-left text-[10px] font-black text-gray-500 uppercase tracking-widest min-w-[120px]">Upload</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {displayedAccountData.map((account) => (
+                        <MemoizedTaskRow
+                          key={account._id}
+                          account={account}
+                          isSelected={selectedItems.has(account._id)}
+                          additionalData={additionalData[account._id]}
+                          remarksData={remarksData[account._id]}
+                          onCheckboxClick={handleCheckboxClick}
+                          onAdditionalDataChange={handleAdditionalDataChange}
+                          onRemarksChange={handleRemarksChange}
+                          onImageUpload={handleImageUpload}
+                          isEditingDesc={editingDescription[account._id]}
+                          tempDesc={tempDescription[account._id]}
+                          onToggleEditDesc={(id, val) => setEditingDescription(prev => ({ ...prev, [id]: val }))}
+                          onTempDescChange={(id, val) => setTempDescription(prev => ({ ...prev, [id]: val }))}
+                          onSaveDesc={(id, currentDesc, item) => handleEditDescription(id, currentDesc, item)}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-            </>
+              {/* Mobile Card View */}
+              <div className="block lg:hidden bg-gray-50">
+                <div className="sticky top-0 z-20 bg-white border-b border-purple-100 p-4 flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" className="h-6 w-6 rounded border-gray-300 text-purple-600" checked={filteredAccountData.length > 0 && selectedItems.size === filteredAccountData.filter(i => {const s = getTaskStatus(i["col10"], i["col15"], i["col6"]); return s !== "Admin Done" && s !== "Done" && s !== "Disabled";}).length} onChange={handleSelectAllItems} />
+                    <span className="text-[11px] font-black text-gray-500 uppercase tracking-widest">Select All Tasks</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">{displayedAccountData.length} Shown</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {displayedAccountData.map((account) => (
+                    <MobileTaskCard
+                      key={account._id}
+                      account={account}
+                      isSelected={selectedItems.has(account._id)}
+                      additionalData={additionalData[account._id]}
+                      remarksData={remarksData[account._id]}
+                      onCheckboxClick={handleCheckboxClick}
+                      onAdditionalDataChange={handleAdditionalDataChange}
+                      onRemarksChange={handleRemarksChange}
+                      onImageUpload={handleImageUpload}
+                      isEditingDesc={editingDescription[account._id]}
+                      tempDesc={tempDescription[account._id]}
+                      onToggleEditDesc={(id, val) => setEditingDescription(prev => ({ ...prev, [id]: val }))}
+                      onTempDescChange={(id, val) => setTempDescription(prev => ({ ...prev, [id]: val }))}
+                      onSaveDesc={(id, currentDesc, item) => handleEditDescription(id, currentDesc, item)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Load More Button */}
+              {displayLimit < filteredAccountData.length && (
+                <div className="p-6 flex justify-center border-t border-purple-100 bg-white">
+                  <button onClick={handleLoadMore} disabled={isLoadingMore} className="px-10 py-3 gradient-bg text-white rounded-xl shadow-lg hover:shadow-2xl transition-all hover:scale-105 active:scale-95 font-black text-xs uppercase tracking-widest">
+                    {isLoadingMore ? "Loading..." : `Show More Tasks (${filteredAccountData.length - displayLimit} remaining)`}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
