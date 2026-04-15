@@ -1306,13 +1306,13 @@ function DelegationDataPage() {
 
       if (result.success) {
         const newDescription = tempDescription[id] !== undefined ? tempDescription[id] : (currentDescription || "");
-        
+
         if (isHistory) {
           setHistoryData(prev => prev.map(hist => hist._id === id ? { ...hist, col8: newDescription } : hist));
         } else {
           setAccountData(prev => prev.map(acc => acc._id === id ? { ...acc, col5: newDescription } : acc));
         }
-        
+
         setEditingDescription(prev => ({ ...prev, [id]: false }));
         setSuccessMessage("Task Description updated successfully!");
 
